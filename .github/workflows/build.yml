@@ -1,0 +1,379 @@
+name: Build RETUI Launcher (Full Arch Linux - 150MB)
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Scaffold Complete Project Structure
+      run: |
+        # Create directories
+        mkdir -p app/src/main/assets
+        mkdir -p app/src/main/java/com/retui/features
+        mkdir -p app/src/main/java/com/retui/ui
+        mkdir -p app/src/main/res/values
+        mkdir -p app/src/main/res/layout
+        mkdir -p app/src/main/res/mipmap-hdpi
+        mkdir -p app/src/main/res/mipmap-mdpi
+        mkdir -p app/src/main/res/mipmap-xhdpi
+        mkdir -p app/src/main/res/mipmap-xxhdpi
+        mkdir -p app/src/main/res/mipmap-xxxhdpi
+
+        # 1. Create Large Assets (150MB total)
+        create_large_file() {
+          local file=$1
+          local size_mb=$2
+          echo "Creating $file (${size_mb}MB)..."
+          if dd if=/dev/urandom of="$file" bs=1M count=$size_mb 2>/dev/null; then
+            :
+          elif command -v truncate &> /dev/null; then
+            truncate -s ${size_mb}M "$file" 2>/dev/null
+          else
+            head -c ${size_mb}M /dev/urandom > "$file" 2>/dev/null
+          fi
+        }
+        
+        create_large_file app/src/main/assets/arch_logo.bin 50
+        create_large_file app/src/main/assets/terminal_fonts.bin 30
+        create_large_file app/src/main/assets/ascii_gallery.bin 25
+        create_large_file app/src/main/assets/command_db.bin 20
+        create_large_file app/src/main/assets/game_assets.bin 15
+        create_large_file app/src/main/assets/wallpapers.bin 10
+        echo "✅ Assets generated."
+
+        # 2. Icon Placeholders
+        for dir in app/src/main/res/mipmap-*; do
+          if command -v convert &> /dev/null; then
+            convert -size 96x96 xc:#1793d1 -fill white -gravity center -pointsize 40 -annotate 0 "R" "$dir/ic_launcher.png"
+            cp "$dir/ic_launcher.png" "$dir/ic_launcher_round.png"
+          else
+            printf '\x89PNG\r\n\x1a\n' > "$dir/ic_launcher.png"
+            cp "$dir/ic_launcher.png" "$dir/ic_launcher_round.png"
+          fi
+        done
+
+        # 3. AndroidManifest.xml
+        cat > app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:tools="http://schemas.android.com/tools">
+
+            <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+            <uses-permission android:name="android.permission.SET_WALLPAPER" />
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+            <uses-permission android:name="android.permission.WAKE_LOCK" />
+            <uses-permission android:name="android.permission.CAMERA" />
+            <uses-permission android:name="android.permission.VIBRATE" />
+            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+            <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+            <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
+            <application
+                android:allowBackup="true"
+                android:icon="@mipmap/ic_launcher"
+                android:label="@string/app_name"
+                android:roundIcon="@mipmap/ic_launcher_round"
+                android:supportsRtl="true"
+                android:theme="@style/Theme.RETUI.Arch"
+                android:largeHeap="true"
+                android:hardwareAccelerated="true"
+                tools:targetApi="31">
+
+                <activity
+                    android:name=".ui.TerminalActivity"
+                    android:exported="true"
+                    android:launchMode="singleTask"
+                    android:screenOrientation="portrait"
+                    android:windowSoftInputMode="adjustResize"
+                    android:theme="@style/Theme.RETUI.Arch.Immersive">
+                    
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.HOME" />
+                        <category android:name="android.intent.category.DEFAULT" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+
+            </application>
+        </manifest>
+        EOF
+
+        # 4. Resources (Strings, Themes, Colors)
+        cat > app/src/main/res/values/strings.xml << 'EOF'
+        <resources>
+            <string name="app_name">RETUI Launcher</string>
+            <string name="arch_welcome">Welcome to RETUI - Arch Linux Style</string>
+        </resources>
+        EOF
+
+        cat > app/src/main/res/values/themes.xml << 'EOF'
+        <resources>
+            <style name="Theme.RETUI" parent="Theme.AppCompat.Light.NoActionBar">
+                <item name="android:windowFullscreen">true</item>
+                <item name="android:windowNoTitle">true</item>
+                <item name="android:windowBackground">@android:color/black</item>
+                <item name="android:statusBarColor">@android:color/transparent</item>
+                <item name="android:navigationBarColor">@android:color/transparent</item>
+            </style>
+            <style name="Theme.RETUI.Arch" parent="Theme.RETUI">
+                <item name="android:windowBackground">#0a0a0f</item>
+                <item name="android:colorPrimary">#1793d1</item>
+                <item name="android:colorPrimaryDark">#0d0d1a</item>
+            </style>
+            <style name="Theme.RETUI.Arch.Immersive" parent="Theme.RETUI.Arch">
+                <item name="android:windowFullscreen">true</item>
+            </style>
+        </resources>
+        EOF
+
+        cat > app/src/main/res/values/colors.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="arch_blue">#1793d1</color>
+            <color name="arch_dark">#0a0a0f</color>
+            <color name="arch_terminal_bg">#1a1a24</color>
+            <color name="arch_terminal_fg">#b8c7e0</color>
+            <color name="arch_green">#27ae60</color>
+            <color name="arch_red">#e74c3c</color>
+            <color name="colorPrimary">#1793d1</color>
+            <color name="colorPrimaryDark">#0d0d1a</color>
+            <color name="colorAccent">#2ecc71</color>
+        </resources>
+        EOF
+
+        # 5. Feature Manager
+        cat > app/src/main/java/com/retui/features/FeatureManager.kt << 'EOF'
+        package com.retui.features
+
+        import android.content.Context
+        import java.io.File
+        import org.json.JSONObject
+
+        class FeatureManager(private val context: Context) {
+            private val features = mutableMapOf<String, Feature>()
+            private val games = mutableMapOf<String, Game>()
+            private val configDir = File(context.filesDir, "features")
+            private val gamesDir = File(context.filesDir, "games")
+            
+            init {
+                configDir.mkdirs()
+                gamesDir.mkdirs()
+            }
+            
+            fun listFeatures(): String = if (features.isEmpty()) "No features installed" else features.keys.joinToString("\n")
+            fun listGames(): String = if (games.isEmpty()) "No games installed" else games.keys.joinToString("\n")
+        }
+        data class Feature(val name: String, val description: String, val commandList: List<String>)
+        data class Game(val name: String, val description: String, val type: String, val data: JSONObject)
+        EOF
+
+        # 6. Terminal Activity & Layout
+        cat > app/src/main/java/com/retui/ui/TerminalActivity.kt << 'EOF'
+        package com.retui.ui
+
+        import android.os.Bundle
+        import android.view.View
+        import android.view.WindowManager
+        import android.view.inputmethod.EditorInfo
+        import android.widget.EditText
+        import android.widget.ScrollView
+        import android.widget.TextView
+        import androidx.appcompat.app.AppCompatActivity
+        import com.retui.features.FeatureManager
+        import java.text.SimpleDateFormat
+        import java.util.*
+
+        class TerminalActivity : AppCompatActivity() {
+            private lateinit var terminalOutput: TextView
+            private lateinit var commandInput: EditText
+            private lateinit var scrollView: ScrollView
+            private lateinit var featureManager: FeatureManager
+            
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                setContentView(R.layout.activity_terminal)
+                
+                terminalOutput = findViewById(R.id.terminal_output)
+                commandInput = findViewById(R.id.command_input)
+                scrollView = findViewById(R.id.terminal_scroll)
+                featureManager = FeatureManager(this)
+                
+                terminalOutput.text = "RETUI Launcher v1.0.0 (Arch Linux Style)\nType 'help' for commands\n\n"
+                
+                commandInput.setOnEditorActionListener { _, actionId, _ ->
+                    if (actionId == EditorInfo.IME_ACTION_DONE) {
+                        val cmd = commandInput.text.toString().trim()
+                        if (cmd.isNotEmpty()) {
+                            terminalOutput.append("[root@retui ~]# $cmd\n")
+                            val res = when (cmd) {
+                                "help" -> "Commands: ls, pwd, neofetch, clear, date, whoami"
+                                "clear" -> { terminalOutput.text = ""; "" }
+                                "neofetch" -> "OS: RETUI Arch Linux x86_64\nKernel: 5.15.0-arch1"
+                                "ls ->" -> "bin  etc  home  usr"
+                                "pwd" -> "/root/retui"
+                                else -> "bash: $cmd: command not found"
+                            }
+                            if (res.isNotEmpty()) terminalOutput.append("$res\n")
+                            commandInput.text.clear()
+                        }
+                        true
+                    } else false
+                }
+            }
+        }
+        EOF
+
+        cat > app/src/main/res/layout/activity_terminal.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:background="#0a0a0f">
+            <ScrollView
+                android:id="@+id/terminal_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
+                <TextView
+                    android:id="@+id/terminal_output"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="12dp"
+                    android:textColor="#b8c7e0"
+                    android:textSize="12sp"
+                    android:typeface="monospace" />
+            </ScrollView>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="#1a1a24"
+                android:padding="8dp">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="[root@retui ~]# "
+                    android:textColor="#2ecc71"
+                    android:textSize="12sp"
+                    android:typeface="monospace" />
+                <EditText
+                    android:id="@+id/command_input"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@null"
+                    android:textColor="#ecf0f1"
+                    android:hint="Type command..."
+                    android:textSize="12sp"
+                    android:typeface="monospace"
+                    android:inputType="text"
+                    android:imeOptions="actionDone"
+                    android:singleLine="true" />
+            </LinearLayout>
+        </LinearLayout>
+        EOF
+
+        # 7. Gradle Configuration Files
+        cat > build.gradle << 'EOF'
+        buildscript {
+            ext.kotlin_version = "1.9.0"
+            repositories { google(); mavenCentral() }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.1.0'
+                classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+            }
+        }
+        allprojects { repositories { google(); mavenCentral() } }
+        EOF
+
+        cat > app/build.gradle << 'EOF'
+        plugins {
+            id 'com.android.application'
+            id 'kotlin-android'
+        }
+        android {
+            namespace 'com.retui'
+            compileSdk 33
+            defaultConfig {
+                applicationId "com.retui.launcher"
+                minSdk 24
+                targetSdk 33
+                versionCode 1
+                versionName "1.0.0"
+            }
+            buildTypes {
+                release {
+                    minifyEnabled false
+                }
+            }
+        }
+        dependencies {
+            implementation 'androidx.core:core-ktx:1.10.1'
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.9.0'
+        }
+        EOF
+
+        cat > settings.gradle << 'EOF'
+        pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+        dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+        rootProject.name = "RETUI Launcher"
+        include ':app'
+        EOF
+        echo "✅ Full project successfully scaffolded via cloud runner!"
+
+    - name: Grant Execute Permission to Gradlew
+      run: |
+        gradle wrapper --gradle-version 8.1
+        chmod +x gradlew
+
+    - name: Build APK
+      run: |
+        if [ "${{ github.event.inputs.build_type }}" == "release" ] || [ "${{ github.ref }}" == "refs/tags/*" ]; then
+          ./gradlew assembleRelease
+        else
+          ./gradlew assembleDebug
+        fi
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: retui-launcher-apk
+        path: app/build/outputs/apk/
