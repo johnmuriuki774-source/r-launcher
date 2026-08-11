@@ -1,64 +1,53 @@
-name: Build Moon Terminal Launcher
+name: Q-Launcher v1
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
       - master
-  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
-    name: Build Moon Terminal Launcher APK
+    name: Build Q-Launcher v1
     runs-on: ubuntu-latest
 
     steps:
 
-      # ============================================================
-      # 1. CHECKOUT
-      # ============================================================
+      # ------------------------------------------------------------
+      # SOURCE
+      # ------------------------------------------------------------
 
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
+      # ------------------------------------------------------------
+      # JAVA
+      # ------------------------------------------------------------
 
-      # ============================================================
-      # 2. JAVA 17
-      # ============================================================
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
+      - name: Java 17
+        uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '17'
-          distribution: 'temurin'
+          cache: gradle
 
+      # ------------------------------------------------------------
+      # CREATE PROJECT
+      # ------------------------------------------------------------
 
-      # ============================================================
-      # 3. CREATE PROJECT DIRECTORIES
-      # ============================================================
-
-      - name: Create Android project structure
+      - name: Create Q-Launcher project
         shell: bash
         run: |
           set -e
 
-          mkdir -p app/src/main/java/com/moon/terminal/ui
-          mkdir -p app/src/main/java/com/moon/terminal/commands
-          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/java/com/qlauncher
           mkdir -p app/src/main/res/values
-          mkdir -p app/src/main/assets
-          mkdir -p gradle/wrapper
+          mkdir -p app/src/main/res/drawable
 
-          echo "Project directories created."
-
-
-      # ============================================================
-      # 4. SETTINGS.GRADLE
-      # ============================================================
-
-      - name: Create settings.gradle
-        shell: bash
-        run: |
           cat > settings.gradle <<'EOF'
           pluginManagement {
               repositories {
@@ -77,46 +66,25 @@ jobs:
               }
           }
 
-          rootProject.name = "Moon Terminal Launcher"
+          rootProject.name = "Q-Launcher"
 
           include(":app")
           EOF
 
-
-      # ============================================================
-      # 5. ROOT BUILD.GRADLE
-      # ============================================================
-
-      - name: Create root build.gradle
-        shell: bash
-        run: |
           cat > build.gradle <<'EOF'
           plugins {
-              id 'com.android.application' version '8.2.2' apply false
-              id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
-          }
-
-          allprojects {
-              configurations.configureEach {
-                  resolutionStrategy {
-                      force(
-                          "org.jetbrains.kotlin:kotlin-stdlib:1.9.22",
-                          "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22",
-                          "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22"
-                      )
-                  }
-              }
+              id 'com.android.application' version '8.7.3' apply false
+              id 'org.jetbrains.kotlin.android' version '2.0.21' apply false
           }
           EOF
 
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          android.enableJetifier=true
+          EOF
 
-      # ============================================================
-      # 6. APP BUILD.GRADLE
-      # ============================================================
-
-      - name: Create app/build.gradle
-        shell: bash
-        run: |
           cat > app/build.gradle <<'EOF'
           plugins {
               id 'com.android.application'
@@ -124,18 +92,17 @@ jobs:
           }
 
           android {
-              namespace 'com.moon.terminal'
-              compileSdk 34
+              namespace 'com.qlauncher'
+
+              compileSdk 35
 
               defaultConfig {
-                  applicationId "com.moon.terminal"
-                  minSdk 24
-                  targetSdk 34
+                  applicationId 'com.qlauncher'
+                  minSdk 23
+                  targetSdk 35
 
                   versionCode 1
-                  versionName "1.0"
-
-                  testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+                  versionName '1.0'
               }
 
               buildTypes {
@@ -145,12 +112,9 @@ jobs:
 
                   release {
                       minifyEnabled false
-                      proguardFiles(
-                          getDefaultProguardFile(
-                              'proguard-android-optimize.txt'
-                          ),
-                          'proguard-rules.pro'
-                      )
+                      proguardFiles getDefaultProguardFile(
+                          'proguard-android-optimize.txt'
+                      ), 'proguard-rules.pro'
                   }
               }
 
@@ -165,179 +129,35 @@ jobs:
           }
 
           dependencies {
-
-              implementation 'androidx.core:core-ktx:1.13.1'
-
-              implementation 'androidx.appcompat:appcompat:1.7.0'
-
-              implementation 'com.google.android.material:material:1.12.0'
-
-              implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
-          }
-
-          configurations.configureEach {
-              resolutionStrategy {
-                  force(
-                      "org.jetbrains.kotlin:kotlin-stdlib:1.9.22",
-                      "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22",
-                      "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22"
-                  )
-              }
+              implementation 'androidx.core:core-ktx:1.15.0'
+              implementation 'androidx.activity:activity-ktx:1.10.1'
           }
           EOF
 
-
-      # ============================================================
-      # 7. GRADLE PROPERTIES
-      # ============================================================
-
-      - name: Create gradle.properties
-        shell: bash
-        run: |
-          cat > gradle.properties <<'EOF'
-          android.useAndroidX=true
-          android.enableJetifier=true
-
-          org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
-
-          kotlin.code.style=official
+          cat > app/proguard-rules.pro <<'EOF'
+          # Q-Launcher v1
           EOF
 
+          # --------------------------------------------------------
+          # MANIFEST
+          # --------------------------------------------------------
 
-      # ============================================================
-      # 8. GRADLE WRAPPER
-      # ============================================================
-
-      - name: Create Gradle wrapper properties
-        shell: bash
-        run: |
-          cat > gradle/wrapper/gradle-wrapper.properties <<'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
-          networkTimeout=10000
-          validateDistributionUrl=true
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          EOF
-
-
-      # ============================================================
-      # 9. COLORS
-      # ============================================================
-
-      - name: Create colors.xml
-        shell: bash
-        run: |
-          cat > app/src/main/res/values/colors.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-
-              <color name="moon_black">#050509</color>
-              <color name="moon_background">#0A0A0F</color>
-              <color name="moon_terminal">#0D0D18</color>
-
-              <color name="moon_blue">#1793D1</color>
-              <color name="moon_cyan">#00E5FF</color>
-              <color name="moon_green">#2ECC71</color>
-
-              <color name="moon_red">#FF3B30</color>
-              <color name="moon_yellow">#FFD60A</color>
-
-              <color name="moon_purple">#9B59B6</color>
-              <color name="moon_white">#ECF0F1</color>
-              <color name="moon_gray">#7F8C8D</color>
-
-          </resources>
-          EOF
-
-
-      # ============================================================
-      # 10. STRINGS
-      # ============================================================
-
-      - name: Create strings.xml
-        shell: bash
-        run: |
-          cat > app/src/main/res/values/strings.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-
-              <string name="app_name">Moon Terminal Launcher</string>
-
-          </resources>
-          EOF
-
-
-      # ============================================================
-      # 11. THEME
-      # ============================================================
-
-      - name: Create themes.xml
-        shell: bash
-        run: |
-          cat > app/src/main/res/values/themes.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-
-              <style
-                  name="Theme.MoonTerminal"
-                  parent="Theme.AppCompat.NoActionBar">
-
-                  <item name="android:fontFamily">monospace</item>
-
-                  <item name="android:windowFullscreen">true</item>
-
-                  <item name="android:windowActionModeOverlay">true</item>
-
-                  <item name="android:windowBackground">
-                      @color/moon_black
-                  </item>
-
-                  <item name="android:navigationBarColor">
-                      @color/moon_black
-                  </item>
-
-                  <item name="android:statusBarColor">
-                      @color/moon_black
-                  </item>
-
-              </style>
-
-          </resources>
-          EOF
-
-
-      # ============================================================
-      # 12. ANDROID MANIFEST
-      # ============================================================
-
-      - name: Create AndroidManifest.xml
-        shell: bash
-        run: |
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
 
           <manifest
               xmlns:android="http://schemas.android.com/apk/res/android">
 
-              <uses-permission android:name="android.permission.INTERNET" />
-
-              <uses-permission android:name="android.permission.VIBRATE" />
-
-              <uses-permission android:name="android.permission.WAKE_LOCK" />
-
               <application
                   android:allowBackup="true"
-                  android:hardwareAccelerated="true"
-                  android:label="@string/app_name"
-                  android:theme="@style/Theme.MoonTerminal">
+                  android:label="Q-Launcher"
+                  android:supportsRtl="true"
+                  android:theme="@style/QTheme">
 
                   <activity
-                      android:name=".ui.TerminalActivity"
-                      android:exported="true"
-                      android:screenOrientation="portrait"
-                      android:windowSoftInputMode="adjustResize">
+                      android:name=".MainActivity"
+                      android:screenOrientation="unspecified"
+                      android:exported="true">
 
                       <intent-filter>
 
@@ -345,7 +165,10 @@ jobs:
                               android:name="android.intent.action.MAIN" />
 
                           <category
-                              android:name="android.intent.category.LAUNCHER" />
+                              android:name="android.intent.category.HOME" />
+
+                          <category
+                              android:name="android.intent.category.DEFAULT" />
 
                       </intent-filter>
 
@@ -356,934 +179,925 @@ jobs:
           </manifest>
           EOF
 
+          # --------------------------------------------------------
+          # THEME
+          # --------------------------------------------------------
 
-      # ============================================================
-      # 13. TERMINAL LAYOUT
-      # ============================================================
-
-      - name: Create terminal layout
-        shell: bash
-        run: |
-          cat > app/src/main/res/layout/activity_terminal.xml <<'EOF'
+          cat > app/src/main/res/values/styles.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
 
-          <LinearLayout
-              xmlns:android="http://schemas.android.com/apk/res/android"
+          <resources>
 
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
+              <style
+                  name="QTheme"
+                  parent="android:style/Theme.Material.NoActionBar">
 
-              android:orientation="vertical"
+                  <item name="android:fontFamily">sans</item>
 
-              android:background="#0A0A0F">
+                  <item name="android:windowActionModeOverlay">
+                      true
+                  </item>
 
-              <ScrollView
+                  <item name="android:windowNoTitle">
+                      true
+                  </item>
 
-                  android:id="@+id/terminal_scroll"
+                  <item name="android:colorAccent">
+                      #00E5FF
+                  </item>
 
-                  android:layout_width="match_parent"
-                  android:layout_height="0dp"
+                  <item name="android:statusBarColor">
+                      #05070A
+                  </item>
 
-                  android:layout_weight="1"
+                  <item name="android:navigationBarColor">
+                      #05070A
+                  </item>
 
-                  android:background="#0D0D18">
+                  <item name="android:windowLightStatusBar">
+                      false
+                  </item>
 
-                  <TextView
+              </style>
 
-                      android:id="@+id/terminal_output"
-
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-
-                      android:padding="10dp"
-
-                      android:fontFamily="monospace"
-
-                      android:textColor="#B8C7E0"
-
-                      android:textSize="15sp"
-
-                      android:lineSpacingExtra="3dp"/>
-
-              </ScrollView>
-
-
-              <LinearLayout
-
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-
-                  android:orientation="horizontal"
-
-                  android:padding="5dp"
-
-                  android:background="#15151F">
-
-                  <TextView
-
-                      android:layout_width="wrap_content"
-                      android:layout_height="wrap_content"
-
-                      android:text="moon@android:~$ "
-
-                      android:textColor="#2ECC71"
-
-                      android:fontFamily="monospace"
-
-                      android:textSize="14sp"/>
-
-
-                  <EditText
-
-                      android:id="@+id/input_field"
-
-                      android:layout_width="0dp"
-                      android:layout_height="wrap_content"
-
-                      android:layout_weight="1"
-
-                      android:background="@android:color/transparent"
-
-                      android:textColor="#ECF0F1"
-
-                      android:textColorHint="#7F8C8D"
-
-                      android:hint="command"
-
-                      android:fontFamily="monospace"
-
-                      android:textSize="14sp"
-
-                      android:singleLine="true"
-
-                      android:inputType="textNoSuggestions"/>
-
-              </LinearLayout>
-
-
-              <TextView
-
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-
-                  android:gravity="center"
-
-                  android:padding="3dp"
-
-                  android:text="🌙 MOON TERMINAL LAUNCHER"
-
-                  android:textColor="#1793D1"
-
-                  android:textSize="9sp"
-
-                  android:fontFamily="monospace"/>
-
-          </LinearLayout>
+          </resources>
           EOF
 
-
-      # ============================================================
-      # 14. COMMAND REGISTRY
-      # ============================================================
-
-      - name: Create CommandRegistry.kt
-        shell: bash
-        run: |
-          cat > app/src/main/java/com/moon/terminal/commands/CommandRegistry.kt <<'EOF'
-          package com.moon.terminal.commands
-
-          import android.content.Context
-          import android.os.Build
-          import android.os.Environment
-          import android.os.StatFs
-          import java.text.SimpleDateFormat
-          import java.util.Date
-          import java.util.Locale
-
-          class CommandRegistry(
-              private val context: Context
-          ) {
-
-              fun executeCommand(input: String): String {
-
-                  val parts = input.trim()
-                      .split(Regex("\\s+"))
-
-                  if (parts.isEmpty()) {
-                      return ""
-                  }
-
-                  val command = parts[0].lowercase()
-
-                  val args =
-                      if (parts.size > 1)
-                          parts.drop(1)
-                      else
-                          emptyList()
-
-                  return when (command) {
-
-                      "help" ->
-                          help()
-
-                      "clear" ->
-                          "CLEAR"
-
-                      "date" ->
-                          SimpleDateFormat(
-                              "yyyy-MM-dd HH:mm:ss",
-                              Locale.getDefault()
-                          ).format(Date())
-
-                      "time" ->
-                          SimpleDateFormat(
-                              "HH:mm:ss",
-                              Locale.getDefault()
-                          ).format(Date())
-
-                      "whoami" ->
-                          "moon"
-
-                      "pwd" ->
-                          "/home/moon"
-
-                      "uname" ->
-                          "Moon Linux aarch64"
-
-                      "echo" ->
-                          args.joinToString(" ")
-
-                      "neofetch" ->
-                          neofetch()
-
-                      "sysinfo" ->
-                          sysinfo()
-
-                      "free" ->
-                          memory()
-
-                      "df" ->
-                          storage()
-
-                      "ls" ->
-                          listFiles()
-
-                      "cowsay" ->
-                          cowsay(args.joinToString(" "))
-
-                      "fortune" ->
-                          fortune()
-
-                      "banner" ->
-                          banner(args.joinToString(" "))
-
-                      "ascii" ->
-                          ascii(args.firstOrNull())
-
-                      "math" ->
-                          calculate(args.joinToString(" "))
-
-                      else ->
-                          "moon: $command: command not found\nType 'help' for available commands."
-                  }
-              }
-
-
-              private fun help(): String {
-
-                  return """
-          ╔══════════════════════════════════════╗
-          ║       MOON TERMINAL COMMANDS         ║
-          ╚══════════════════════════════════════╝
-
-          SYSTEM
-            neofetch     System information
-            sysinfo      Device information
-            free         Memory information
-            df           Storage information
-            date         Current date
-            time         Current time
-
-          FILES
-            ls           List files
-            pwd          Current directory
-            cat          Read a file
-
-          TERMINAL
-            clear        Clear terminal
-            echo         Print text
-            whoami       Current user
-            uname        System information
-
-          FUN
-            cowsay       ASCII cow
-            fortune      Random message
-            banner       Banner text
-            ascii arch   Arch ASCII art
-            ascii tux    Tux ASCII art
-
-          UTILITY
-            math 2+2      Calculator
-
-          🌙 Moon Terminal Launcher
-                  """.trimIndent()
-              }
-
-
-              private fun neofetch(): String {
-
-                  val runtime = Runtime.getRuntime()
-
-                  val total =
-                      runtime.totalMemory() /
-                          1024 /
-                          1024
-
-                  val free =
-                      runtime.freeMemory() /
-                          1024 /
-                          1024
-
-                  return """
-                         .----.
-                        / .--. \
-                       / /    \ \
-                       | |    | |
-                       \ \    / /
-                        '----'
-
-          OS: Moon Linux
-          Device: ${Build.MANUFACTURER} ${Build.MODEL}
-          Android: ${Build.VERSION.RELEASE}
-          API: ${Build.VERSION.SDK_INT}
-          CPU: ${Build.SUPPORTED_ABIS.joinToString()}
-          Memory: ${total - free}MB / ${total}MB
-
-          🌙 Moon Terminal Launcher
-                  """.trimIndent()
-              }
-
-
-              private fun sysinfo(): String {
-
-                  return """
-          System Information
-          ─────────────────────────
-
-          Manufacturer : ${Build.MANUFACTURER}
-          Model        : ${Build.MODEL}
-          Android      : ${Build.VERSION.RELEASE}
-          API Level    : ${Build.VERSION.SDK_INT}
-          CPU          : ${Build.SUPPORTED_ABIS.joinToString()}
-          Board        : ${Build.BOARD}
-          Device       : ${Build.DEVICE}
-                  """.trimIndent()
-              }
-
-
-              private fun memory(): String {
-
-                  val runtime =
-                      Runtime.getRuntime()
-
-                  val total =
-                      runtime.totalMemory() /
-                          1024 /
-                          1024
-
-                  val free =
-                      runtime.freeMemory() /
-                          1024 /
-                          1024
-
-                  val used =
-                      total - free
-
-                  return """
-          Memory
-
-          Used      : ${used} MB
-          Free      : ${free} MB
-          Allocated : ${total} MB
-          Maximum   : ${runtime.maxMemory() / 1024 / 1024} MB
-                  """.trimIndent()
-              }
-
-
-              private fun storage(): String {
-
-                  return try {
-
-                      val stat =
-                          StatFs(
-                              Environment
-                                  .getDataDirectory()
-                                  .path
-                          )
-
-                      val block =
-                          stat.blockSizeLong
-
-                      val total =
-                          block *
-                              stat.blockCountLong /
-                              1024 /
-                              1024 /
-                              1024
-
-                      val available =
-                          block *
-                              stat.availableBlocksLong /
-                              1024 /
-                              1024 /
-                              1024
-
-                      """
-          Storage
-
-          Total     : ${total} GB
-          Available : ${available} GB
-          Used      : ${total - available} GB
-                      """.trimIndent()
-
-                  } catch (e: Exception) {
-
-                      "Unable to read storage information."
-                  }
-              }
-
-
-              private fun listFiles(): String {
-
-                  return """
-          .
-          ├── Documents/
-          ├── Downloads/
-          ├── Music/
-          ├── Pictures/
-          ├── Videos/
-          └── moon/
-                  """.trimIndent()
-              }
-
-
-              private fun cowsay(message: String): String {
-
-                  val text =
-                      if (message.isBlank())
-                          "Moon Terminal is running!"
-                      else
-                          message
-
-                  val line =
-                      "-".repeat(text.length + 2)
-
-                  return """
-           $line
-          < $text >
-           $line
-             \
-              \
-               ^__^
-               (oo)\_______
-                (__)\       )\/\
-                    ||----w |
-                    ||     ||
-                  """.trimIndent()
-              }
-
-
-              private fun fortune(): String {
-
-                  val messages = listOf(
-
-                      "Keep learning. Every command teaches you something.",
-
-                      "The terminal is only as powerful as the person using it.",
-
-                      "Build something today.",
-
-                      "One line of code can start a whole project.",
-
-                      "Welcome back to Moon Terminal."
-
-                  )
-
-                  return messages.random()
-              }
-
-
-              private fun banner(text: String): String {
-
-                  if (text.isBlank()) {
-                      return "Usage: banner <text>"
-                  }
-
-                  return """
-          ███╗   ███╗ ██████╗  ██████╗ ███╗   ██╗
-          ████╗ ████║██╔═══██╗██╔═══██╗████╗  ██║
-          ██╔████╔██║██║   ██║██║   ██║██╔██╗ ██║
-          ██║╚██╔╝██║██║   ██║██║   ██║██║╚██╗██║
-          ██║ ╚═╝ ██║╚██████╔╝╚██████╔╝██║ ╚████║
-          ╚═╝     ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝
-
-          $text
-                  """.trimIndent()
-              }
-
-
-              private fun ascii(name: String?): String {
-
-                  return when (name?.lowercase()) {
-
-                      "arch" -> """
-                           /\
-                          /  \
-                         /    \
-                        / /\   \
-                       / /  \   \
-                      /_/    \___\
-                      Arch Linux
-                      """.trimIndent()
-
-                      "tux" -> """
-                         .--.
-                        |o_o |
-                        |:_/ |
-                       //   \ \
-                      (|     | )
-                     /'\_   _/`\
-                     \___)=(___/
-                      """.trimIndent()
-
-                      else ->
-                          "Available: ascii arch, ascii tux"
-                  }
-              }
-
-
-              private fun calculate(expression: String): String {
-
-                  return try {
-
-                      when {
-
-                          expression.contains("+") -> {
-
-                              val p =
-                                  expression.split("+", limit = 2)
-
-                              (
-                                  p[0].trim().toDouble() +
-                                  p[1].trim().toDouble()
-                              ).toString()
-                          }
-
-                          expression.contains("*") -> {
-
-                              val p =
-                                  expression.split("*", limit = 2)
-
-                              (
-                                  p[0].trim().toDouble() *
-                                  p[1].trim().toDouble()
-                              ).toString()
-                          }
-
-                          expression.contains("/") -> {
-
-                              val p =
-                                  expression.split("/", limit = 2)
-
-                              (
-                                  p[0].trim().toDouble() /
-                                  p[1].trim().toDouble()
-                              ).toString()
-                          }
-
-                          expression.contains("-") -> {
-
-                              val p =
-                                  expression.split("-", limit = 2)
-
-                              (
-                                  p[0].trim().toDouble() -
-                                  p[1].trim().toDouble()
-                              ).toString()
-                          }
-
-                          else ->
-                              expression.toDouble().toString()
-                      }
-
-                  } catch (e: Exception) {
-
-                      "Invalid calculation."
-                  }
-              }
-          }
-          EOF
-
-
-      # ============================================================
-      # 15. TERMINAL ACTIVITY
-      # ============================================================
-
-      - name: Create TerminalActivity.kt
-        shell: bash
-        run: |
-          cat > app/src/main/java/com/moon/terminal/ui/TerminalActivity.kt <<'EOF'
-          package com.moon.terminal.ui
-
+          # --------------------------------------------------------
+          # MAIN ACTIVITY
+          # --------------------------------------------------------
+
+          cat > app/src/main/java/com/qlauncher/MainActivity.kt <<'EOF'
+          package com.qlauncher
+
+          import android.app.Activity
+          import android.content.Intent
+          import android.content.pm.PackageManager
+          import android.graphics.*
+          import android.graphics.drawable.GradientDrawable
+          import android.net.Uri
           import android.os.Bundle
-          import android.view.KeyEvent
-          import android.view.View
-          import android.widget.EditText
-          import android.widget.ScrollView
-          import android.widget.TextView
-          import androidx.appcompat.app.AppCompatActivity
-          import com.moon.terminal.R
-          import com.moon.terminal.commands.CommandRegistry
+          import android.provider.Settings
+          import android.view.*
+          import android.view.inputmethod.InputMethodManager
+          import android.content.Context
+          import android.widget.*
+          import java.text.SimpleDateFormat
+          import java.util.*
 
-          class TerminalActivity : AppCompatActivity() {
+          class MainActivity : Activity() {
 
-              private lateinit var output: TextView
-              private lateinit var input: EditText
-              private lateinit var scroll: ScrollView
-              private lateinit var registry: CommandRegistry
+              private lateinit var root: FrameLayout
+              private lateinit var clock: TextView
+              private lateinit var search: EditText
+              private lateinit var appGrid: GridLayout
 
-              private val history =
-                  mutableListOf<String>()
+              private val cyan = Color.rgb(0, 229, 255)
+              private val background = Color.rgb(5, 7, 10)
+              private val panel = Color.rgb(12, 17, 22)
 
-              private var historyIndex =
-                  0
-
-              override fun onCreate(
-                  savedInstanceState: Bundle?
-              ) {
+              override fun onCreate(savedInstanceState: Bundle?) {
 
                   super.onCreate(savedInstanceState)
 
-                  setContentView(
-                      R.layout.activity_terminal
+                  window.statusBarColor = background
+                  window.navigationBarColor = background
+
+                  buildUI()
+              }
+
+              // ====================================================
+              // MAIN UI
+              // ====================================================
+
+              private fun buildUI() {
+
+                  root = FrameLayout(this)
+
+                  root.setBackgroundColor(background)
+
+                  root.addView(
+                      QBackground(this),
+                      FrameLayout.LayoutParams(
+                          -1,
+                          -1
+                      )
                   )
 
-                  hideSystemUI()
+                  val main = LinearLayout(this)
 
-                  output =
-                      findViewById(
-                          R.id.terminal_output
+                  main.orientation =
+                      LinearLayout.VERTICAL
+
+                  main.setPadding(
+                      24,
+                      24,
+                      24,
+                      20
+                  )
+
+                  // ------------------------------------------------
+                  // HEADER
+                  // ------------------------------------------------
+
+                  val header = LinearLayout(this)
+
+                  header.gravity =
+                      Gravity.CENTER_VERTICAL
+
+                  val logo = TextView(this)
+
+                  logo.text = "Q"
+
+                  logo.textSize = 42f
+
+                  logo.typeface =
+                      Typeface.DEFAULT_BOLD
+
+                  logo.setTextColor(cyan)
+
+                  header.addView(
+                      logo,
+                      LinearLayout.LayoutParams(
+                          0,
+                          -2,
+                          1f
+                      )
+                  )
+
+                  clock = TextView(this)
+
+                  clock.textSize = 20f
+
+                  clock.setTextColor(
+                      Color.WHITE
+                  )
+
+                  header.addView(clock)
+
+                  main.addView(header)
+
+                  // ------------------------------------------------
+                  // STATUS
+                  // ------------------------------------------------
+
+                  val status = TextView(this)
+
+                  status.text =
+                      "Q-LAUNCHER  •  ONLINE"
+
+                  status.textSize = 11f
+
+                  status.setTextColor(
+                      Color.rgb(
+                          90,
+                          140,
+                          150
+                      )
+                  )
+
+                  status.setPadding(
+                      0,
+                      0,
+                      0,
+                      20
+                  )
+
+                  main.addView(status)
+
+                  // ------------------------------------------------
+                  // SEARCH
+                  // ------------------------------------------------
+
+                  search = EditText(this)
+
+                  search.hint =
+                      "Search applications..."
+
+                  search.textSize = 16f
+
+                  search.singleLine = true
+
+                  search.setTextColor(
+                      Color.WHITE
+                  )
+
+                  search.setHintTextColor(
+                      Color.rgb(
+                          100,
+                          120,
+                          130
+                      )
+                  )
+
+                  search.setPadding(
+                      22,
+                      0,
+                      22,
+                      0
+                  )
+
+                  search.background =
+                      rounded(
+                          panel,
+                          28f,
+                          Color.rgb(
+                              0,
+                              100,
+                              120
+                          )
                       )
 
-                  input =
-                      findViewById(
-                          R.id.input_field
+                  main.addView(
+                      search,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          58
+                      )
+                  )
+
+                  search.setOnEditorActionListener {
+                      _, _, _ ->
+
+                      true
+                  }
+
+                  // ------------------------------------------------
+                  // SECTION
+                  // ------------------------------------------------
+
+                  val appsTitle =
+                      TextView(this)
+
+                  appsTitle.text =
+                      "APPLICATIONS"
+
+                  appsTitle.textSize = 11f
+
+                  appsTitle.setTextColor(
+                      Color.rgb(
+                          90,
+                          150,
+                          160
+                      )
+                  )
+
+                  appsTitle.setPadding(
+                      4,
+                      22,
+                      4,
+                      10
+                  )
+
+                  main.addView(appsTitle)
+
+                  // ------------------------------------------------
+                  // APP GRID
+                  // ------------------------------------------------
+
+                  appGrid = GridLayout(this)
+
+                  appGrid.columnCount = 3
+
+                  main.addView(
+                      appGrid,
+                      LinearLayout.LayoutParams(
+                          -1,
+                          0,
+                          1f
+                      )
+                  )
+
+                  populateApps()
+
+                  // ------------------------------------------------
+                  // BOTTOM BAR
+                  // ------------------------------------------------
+
+                  val bottom =
+                      LinearLayout(this)
+
+                  bottom.gravity =
+                      Gravity.CENTER
+
+                  bottom.setPadding(
+                      0,
+                      10,
+                      0,
+                      0
+                  )
+
+                  val terminal =
+                      bottomButton(
+                          "TERMINAL"
                       )
 
-                  scroll =
-                      findViewById(
-                          R.id.terminal_scroll
+                  val settings =
+                      bottomButton(
+                          "SETTINGS"
                       )
 
-                  registry =
-                      CommandRegistry(this)
+                  bottom.addView(
+                      terminal,
+                      LinearLayout.LayoutParams(
+                          0,
+                          56,
+                          1f
+                      )
+                  )
 
-                  showWelcome()
+                  bottom.addView(
+                      Space(this),
+                      LinearLayout.LayoutParams(
+                          12,
+                          1
+                      )
+                  )
 
-                  input.setOnKeyListener { _, keyCode, event ->
+                  bottom.addView(
+                      settings,
+                      LinearLayout.LayoutParams(
+                          0,
+                          56,
+                          1f
+                      )
+                  )
 
-                      if (
-                          event.action ==
-                          KeyEvent.ACTION_DOWN
-                      ) {
+                  main.addView(bottom)
 
-                          when (keyCode) {
+                  root.addView(
+                      main,
+                      FrameLayout.LayoutParams(
+                          -1,
+                          -1
+                      )
+                  )
 
-                              KeyEvent.KEYCODE_ENTER -> {
+                  setContentView(root)
 
-                                  executeCommand()
+                  terminal.setOnClickListener {
+                      showTerminal()
+                  }
 
-                                  true
-                              }
+                  settings.setOnClickListener {
+                      openSettings()
+                  }
 
-                              KeyEvent.KEYCODE_DPAD_UP -> {
+                  updateClock()
+              }
 
-                                  previousCommand()
+              // ====================================================
+              // APPS
+              // ====================================================
 
-                                  true
-                              }
+              private fun populateApps() {
 
-                              KeyEvent.KEYCODE_DPAD_DOWN -> {
+                  appGrid.removeAllViews()
 
-                                  nextCommand()
+                  val pm =
+                      packageManager
 
-                                  true
-                              }
+                  val packages =
+                      pm.getInstalledApplications(
+                          PackageManager.GET_META_DATA
+                      )
 
-                              else ->
-                                  false
-                          }
+                  val launchable =
+                      packages.filter {
 
-                      } else {
+                          pm.getLaunchIntentForPackage(
+                              it.packageName
+                          ) != null
+                      }.sortedBy {
 
-                          false
+                          pm.getApplicationLabel(
+                              it
+                          ).toString()
+                      }
+
+                  for (info in launchable) {
+
+                      val label =
+                          pm.getApplicationLabel(
+                              info
+                          ).toString()
+
+                      addApp(
+                          label,
+                          info.packageName
+                      )
+                  }
+              }
+
+              private fun addApp(
+                  label: String,
+                  packageName: String
+              ) {
+
+                  val button =
+                      TextView(this)
+
+                  button.text = label
+
+                  button.textSize = 13f
+
+                  button.gravity =
+                      Gravity.CENTER
+
+                  button.setTextColor(
+                      Color.WHITE
+                  )
+
+                  button.setPadding(
+                      6,
+                      12,
+                      6,
+                      12
+                  )
+
+                  button.background =
+                      rounded(
+                          panel,
+                          20f,
+                          Color.rgb(
+                              35,
+                              55,
+                              65
+                          )
+                      )
+
+                  val params =
+                      GridLayout.LayoutParams()
+
+                  params.width = 0
+                  params.height = 100
+
+                  params.columnSpec =
+                      GridLayout.spec(
+                          GridLayout.UNDEFINED,
+                          1f
+                      )
+
+                  params.setMargins(
+                      4,
+                      4,
+                      4,
+                      4
+                  )
+
+                  button.layoutParams =
+                      params
+
+                  button.setOnClickListener {
+
+                      val launch =
+                          packageManager
+                              .getLaunchIntentForPackage(
+                                  packageName
+                              )
+
+                      if (launch != null) {
+                          startActivity(launch)
                       }
                   }
 
-                  input.requestFocus()
+                  appGrid.addView(button)
               }
 
+              // ====================================================
+              // TERMINAL
+              // ====================================================
 
-              private fun hideSystemUI() {
+              private fun showTerminal() {
 
-                  @Suppress("DEPRECATION")
+                  val dialog =
+                      Dialog(this)
 
-                  window.decorView.systemUiVisibility =
-                      View.SYSTEM_UI_FLAG_FULLSCREEN or
-                      View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                      View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                      View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                      View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                      View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-              }
+                  val box =
+                      LinearLayout(this)
 
+                  box.orientation =
+                      LinearLayout.VERTICAL
 
-              private fun showWelcome() {
-
-                  output.text = """
-
-          ███╗   ███╗ ██████╗  ██████╗ ███╗   ██╗
-          ████╗ ████║██╔═══██╗██╔═══██╗████╗  ██║
-          ██╔████╔██║██║   ██║██║   ██║██╔██╗ ██║
-          ██║╚██╔╝██║██║   ██║██║   ██║██║╚██╗██║
-          ██║ ╚═╝ ██║╚██████╔╝╚██████╔╝██║ ╚████║
-          ╚═╝     ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝
-
-          🌙 MOON TERMINAL LAUNCHER v1.0
-
-          Android Terminal Environment
-
-          Type 'help' to see available commands.
-
-          """.trimIndent()
-
-                  appendPrompt()
-              }
-
-
-              private fun appendPrompt() {
-
-                  output.append(
-                      "\n\nmoon@android:~$ "
+                  box.setPadding(
+                      24,
+                      24,
+                      24,
+                      24
                   )
 
-                  scroll.post {
-
-                      scroll.fullScroll(
-                          View.FOCUS_DOWN
+                  box.setBackgroundColor(
+                      Color.rgb(
+                          3,
+                          8,
+                          10
                       )
-                  }
-
-                  input.setText("")
-
-                  input.requestFocus()
-              }
-
-
-              private fun executeCommand() {
-
-                  val command =
-                      input.text.toString().trim()
-
-                  if (command.isEmpty()) {
-
-                      appendPrompt()
-
-                      return
-                  }
-
-                  history.add(command)
-
-                  historyIndex =
-                      history.size
-
-                  output.append(
-                      "$command\n"
                   )
 
-                  val result =
-                      registry.executeCommand(
-                          command
+                  val title =
+                      TextView(this)
+
+                  title.text =
+                      "Q TERMINAL"
+
+                  title.textSize = 20f
+
+                  title.typeface =
+                      Typeface.MONOSPACE
+
+                  title.setTextColor(cyan)
+
+                  box.addView(title)
+
+                  val output =
+                      TextView(this)
+
+                  output.text =
+                      "\nQ-LAUNCHER TERMINAL\n" +
+                      "System online.\n" +
+                      "Terminal interface ready.\n\n" +
+                      "q@launcher:~$ "
+
+                  output.textSize = 14f
+
+                  output.typeface =
+                      Typeface.MONOSPACE
+
+                  output.setTextColor(
+                      Color.rgb(
+                          180,
+                          240,
+                          220
                       )
+                  )
 
-                  if (result == "CLEAR") {
+                  output.setPadding(
+                      0,
+                      24,
+                      0,
+                      20
+                  )
 
-                      output.text = ""
+                  box.addView(output)
 
-                  } else {
+                  val input =
+                      EditText(this)
+
+                  input.hint =
+                      "Enter command..."
+
+                  input.typeface =
+                      Typeface.MONOSPACE
+
+                  input.setTextColor(
+                      Color.WHITE
+                  )
+
+                  input.setHintTextColor(
+                      Color.GRAY
+                  )
+
+                  input.singleLine = true
+
+                  box.addView(input)
+
+                  input.setOnEditorActionListener {
+                      _, _, _ ->
+
+                      val command =
+                          input.text
+                              .toString()
+                              .trim()
 
                       output.append(
-                          "$result\n"
+                          "\n$command\n"
                       )
+
+                      when (command.lowercase()) {
+
+                          "clear" ->
+                              output.text =
+                                  "q@launcher:~$ "
+
+                          "help" ->
+                              output.append(
+                                  "Commands:\n" +
+                                  "help\n" +
+                                  "clear\n" +
+                                  "apps\n" +
+                                  "settings\n"
+                              )
+
+                          "apps" ->
+                              output.append(
+                                  "Installed apps: " +
+                                  appGrid.childCount +
+                                  "\n"
+                              )
+
+                          "settings" -> {
+                              dialog.dismiss()
+                              openSettings()
+                          }
+
+                          else ->
+                              output.append(
+                                  "Command not available in v1.\n"
+                              )
+                      }
+
+                      input.text.clear()
+
+                      true
                   }
 
-                  appendPrompt()
-              }
+                  dialog.setContentView(box)
 
+                  val window =
+                      dialog.window
 
-              private fun previousCommand() {
-
-                  if (history.isEmpty()) {
-                      return
-                  }
-
-                  historyIndex =
-                      (historyIndex - 1)
-                          .coerceAtLeast(0)
-
-                  input.setText(
-                      history[historyIndex]
+                  window?.setBackgroundDrawableResource(
+                      android.R.color.transparent
                   )
 
-                  input.setSelection(
-                      input.text.length
+                  window?.setLayout(
+                      -1,
+                      -2
+                  )
+
+                  dialog.show()
+              }
+
+              // ====================================================
+              // SETTINGS
+              // ====================================================
+
+              private fun openSettings() {
+
+                  startActivity(
+                      Intent(
+                          Settings.ACTION_SETTINGS
+                      )
                   )
               }
 
+              // ====================================================
+              // BOTTOM BUTTON
+              // ====================================================
 
-              private fun nextCommand() {
+              private fun bottomButton(
+                  text: String
+              ): TextView {
 
-                  if (history.isEmpty()) {
-                      return
-                  }
+                  val button =
+                      TextView(this)
 
-                  historyIndex =
-                      (historyIndex + 1)
-                          .coerceAtMost(
-                              history.size
+                  button.text = text
+
+                  button.textSize = 13f
+
+                  button.gravity =
+                      Gravity.CENTER
+
+                  button.setTextColor(cyan)
+
+                  button.background =
+                      rounded(
+                          Color.rgb(
+                              8,
+                              22,
+                              27
+                          ),
+                          26f,
+                          Color.rgb(
+                              0,
+                              100,
+                              120
                           )
-
-                  if (
-                      historyIndex ==
-                      history.size
-                  ) {
-
-                      input.setText("")
-
-                  } else {
-
-                      input.setText(
-                          history[historyIndex]
                       )
 
-                      input.setSelection(
-                          input.text.length
+                  return button
+              }
+
+              // ====================================================
+              // SHAPES
+              // ====================================================
+
+              private fun rounded(
+                  color: Int,
+                  radius: Float,
+                  stroke: Int
+              ): GradientDrawable {
+
+                  val drawable =
+                      GradientDrawable()
+
+                  drawable.setColor(color)
+
+                  drawable.cornerRadius =
+                      radius
+
+                  drawable.setStroke(
+                      1,
+                      stroke
+                  )
+
+                  return drawable
+              }
+
+              // ====================================================
+              // CLOCK
+              // ====================================================
+
+              private fun updateClock() {
+
+                  val handler =
+                      android.os.Handler(
+                          mainLooper
                       )
+
+                  val runnable =
+                      object : Runnable {
+
+                          override fun run() {
+
+                              val format =
+                                  SimpleDateFormat(
+                                      "HH:mm:ss",
+                                      Locale.getDefault()
+                                  )
+
+                              clock.text =
+                                  format.format(
+                                      Date()
+                                  )
+
+                              handler.postDelayed(
+                                  this,
+                                  1000
+                              )
+                          }
+                      }
+
+                  handler.post(runnable)
+              }
+          }
+
+          // ========================================================
+          // BACKGROUND
+          // ========================================================
+
+          class QBackground(
+              context: Context
+          ) : View(context) {
+
+              private val paint =
+                  Paint(
+                      Paint.ANTI_ALIAS_FLAG
+                  )
+
+              override fun onDraw(
+                  canvas: Canvas
+              ) {
+
+                  val width =
+                      width.toFloat()
+
+                  val height =
+                      height.toFloat()
+
+                  val gradient =
+                      LinearGradient(
+                          0f,
+                          0f,
+                          width,
+                          height,
+                          Color.rgb(
+                              5,
+                              7,
+                              10
+                          ),
+                          Color.rgb(
+                              7,
+                              22,
+                              28
+                          ),
+                          Shader.TileMode.CLAMP
+                      )
+
+                  paint.shader =
+                      gradient
+
+                  canvas.drawRect(
+                      0f,
+                      0f,
+                      width,
+                      height,
+                      paint
+                  )
+
+                  paint.shader = null
+
+                  paint.color =
+                      Color.argb(
+                          20,
+                          0,
+                          229,
+                          255
+                      )
+
+                  paint.strokeWidth = 1f
+
+                  val spacing = 60f
+
+                  var x = 0f
+
+                  while (x < width) {
+
+                      canvas.drawLine(
+                          x,
+                          0f,
+                          x,
+                          height,
+                          paint
+                      )
+
+                      x += spacing
+                  }
+
+                  var y = 0f
+
+                  while (y < height) {
+
+                      canvas.drawLine(
+                          0f,
+                          y,
+                          width,
+                          y,
+                          paint
+                      )
+
+                      y += spacing
                   }
               }
           }
           EOF
 
+      # ------------------------------------------------------------
+      # GRADLE 8.9
+      # ------------------------------------------------------------
 
-      # ============================================================
-      # 16. PROGUARD
-      # ============================================================
-
-      - name: Create proguard-rules.pro
-        shell: bash
-        run: |
-          touch app/proguard-rules.pro
-
-
-      # ============================================================
-      # 17. CREATE SMALL DEMO ASSET
-      # ============================================================
-
-      - name: Create launcher asset
-        shell: bash
-        run: |
-          echo "Moon Terminal Launcher" \
-            > app/src/main/assets/moon_info.txt
-
-
-      # ============================================================
-      # 18. INSTALL GRADLE
-      # ============================================================
-
-      - name: Install Gradle
+      - name: Install Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.2'
-
-
-      # ============================================================
-      # 19. GENERATE WRAPPER
-      # ============================================================
+          gradle-version: '8.9'
 
       - name: Generate Gradle wrapper
-        shell: bash
         run: |
-          gradle wrapper --gradle-version 8.2
+          gradle wrapper --gradle-version 8.9
+          chmod +x ./gradlew
 
+      # ------------------------------------------------------------
+      # BUILD
+      # ------------------------------------------------------------
 
-      # ============================================================
-      # 20. BUILD APK
-      # ============================================================
-
-      - name: Build Moon Terminal Launcher
-        shell: bash
+      - name: Clean
         run: |
-          chmod +x gradlew
-
-          ./gradlew clean assembleDebug \
+          ./gradlew clean \
             --no-daemon \
             --stacktrace
 
-
-      # ============================================================
-      # 21. VERIFY APK
-      # ============================================================
-
-      - name: Verify APK
-        shell: bash
+      - name: Build Debug APK
         run: |
-          echo "APK files:"
+          ./gradlew assembleDebug \
+            --no-daemon \
+            --stacktrace
 
-          find app/build/outputs/apk \
+      # ------------------------------------------------------------
+      # SHOW APK
+      # ------------------------------------------------------------
+
+      - name: Locate APK
+        run: |
+          echo "======================================"
+          echo "Q-LAUNCHER V1 APK"
+          echo "======================================"
+
+          find . \
             -type f \
             -name "*.apk" \
             -print
 
-          test -f \
-            app/build/outputs/apk/debug/app-debug.apk
+          echo "======================================"
 
-          echo "================================"
-          echo "BUILD SUCCESSFUL"
-          echo "================================"
+      # ------------------------------------------------------------
+      # UPLOAD
+      # ------------------------------------------------------------
 
-
-      # ============================================================
-      # 22. UPLOAD APK
-      # ============================================================
-
-      - name: Upload Moon Terminal APK
+      - name: Upload Q-Launcher v1
         uses: actions/upload-artifact@v4
         with:
-          name: Moon-Terminal-Launcher-APK
+          name: Q-Launcher-v1
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
-
-      # ============================================================
-      # 23. BUILD SUMMARY
-      # ============================================================
-
-      - name: Build summary
-        shell: bash
-        run: |
-          echo "🌙 Moon Terminal Launcher"
-          echo ""
-          echo "APK successfully built."
-          echo ""
-          echo "Artifact:"
-          echo "Moon-Terminal-Launcher-APK"
+          retention-days: 30
