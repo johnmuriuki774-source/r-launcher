@@ -1,379 +1,808 @@
-name: Build RETUI Launcher (Full Arch Linux - 150MB)
+name: Build Moon Terminal Launcher
 
 on:
   push:
-    branches: [ main, master ]
-    tags:
-      - 'v*'
-  pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
   workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build type'
-        required: true
-        default: 'debug'
-        type: choice
-        options:
-          - debug
-          - release
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: gradle
 
-    - name: Scaffold Complete Project Structure
-      run: |
-        # Create directories
-        mkdir -p app/src/main/assets
-        mkdir -p app/src/main/java/com/retui/features
-        mkdir -p app/src/main/java/com/retui/ui
-        mkdir -p app/src/main/res/values
-        mkdir -p app/src/main/res/layout
-        mkdir -p app/src/main/res/mipmap-hdpi
-        mkdir -p app/src/main/res/mipmap-mdpi
-        mkdir -p app/src/main/res/mipmap-xhdpi
-        mkdir -p app/src/main/res/mipmap-xxhdpi
-        mkdir -p app/src/main/res/mipmap-xxxhdpi
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-        # 1. Create Large Assets (150MB total)
-        create_large_file() {
-          local file=$1
-          local size_mb=$2
-          echo "Creating $file (${size_mb}MB)..."
-          if dd if=/dev/urandom of="$file" bs=1M count=$size_mb 2>/dev/null; then
-            :
-          elif command -v truncate &> /dev/null; then
-            truncate -s ${size_mb}M "$file" 2>/dev/null
-          else
-            head -c ${size_mb}M /dev/urandom > "$file" 2>/dev/null
-          fi
-        }
-        
-        create_large_file app/src/main/assets/arch_logo.bin 50
-        create_large_file app/src/main/assets/terminal_fonts.bin 30
-        create_large_file app/src/main/assets/ascii_gallery.bin 25
-        create_large_file app/src/main/assets/command_db.bin 20
-        create_large_file app/src/main/assets/game_assets.bin 15
-        create_large_file app/src/main/assets/wallpapers.bin 10
-        echo "✅ Assets generated."
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
 
-        # 2. Icon Placeholders
-        for dir in app/src/main/res/mipmap-*; do
-          if command -v convert &> /dev/null; then
-            convert -size 96x96 xc:#1793d1 -fill white -gravity center -pointsize 40 -annotate 0 "R" "$dir/ic_launcher.png"
-            cp "$dir/ic_launcher.png" "$dir/ic_launcher_round.png"
-          else
-            printf '\x89PNG\r\n\x1a\n' > "$dir/ic_launcher.png"
-            cp "$dir/ic_launcher.png" "$dir/ic_launcher_round.png"
-          fi
-        done
+      - name: Create project directories
+        run: |
+          mkdir -p app/src/main/java/com/moon/terminal
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p gradle/wrapper
 
-        # 3. AndroidManifest.xml
-        cat > app/src/main/AndroidManifest.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            xmlns:tools="http://schemas.android.com/tools">
+      - name: Create settings.gradle
+        run: |
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
 
-            <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
-            <uses-permission android:name="android.permission.SET_WALLPAPER" />
-            <uses-permission android:name="android.permission.INTERNET" />
-            <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-            <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-            <uses-permission android:name="android.permission.WAKE_LOCK" />
-            <uses-permission android:name="android.permission.CAMERA" />
-            <uses-permission android:name="android.permission.VIBRATE" />
-            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-            <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-            <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-            <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
 
-            <application
-                android:allowBackup="true"
-                android:icon="@mipmap/ic_launcher"
-                android:label="@string/app_name"
-                android:roundIcon="@mipmap/ic_launcher_round"
-                android:supportsRtl="true"
-                android:theme="@style/Theme.RETUI.Arch"
-                android:largeHeap="true"
-                android:hardwareAccelerated="true"
-                tools:targetApi="31">
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
 
-                <activity
-                    android:name=".ui.TerminalActivity"
-                    android:exported="true"
-                    android:launchMode="singleTask"
-                    android:screenOrientation="portrait"
-                    android:windowSoftInputMode="adjustResize"
-                    android:theme="@style/Theme.RETUI.Arch.Immersive">
-                    
-                    <intent-filter>
-                        <action android:name="android.intent.action.MAIN" />
-                        <category android:name="android.intent.category.HOME" />
-                        <category android:name="android.intent.category.DEFAULT" />
-                        <category android:name="android.intent.category.LAUNCHER" />
-                    </intent-filter>
-                </activity>
+          rootProject.name = "Moon Terminal Launcher"
 
-            </application>
-        </manifest>
-        EOF
+          include(":app")
+          EOF
 
-        # 4. Resources (Strings, Themes, Colors)
-        cat > app/src/main/res/values/strings.xml << 'EOF'
-        <resources>
-            <string name="app_name">RETUI Launcher</string>
-            <string name="arch_welcome">Welcome to RETUI - Arch Linux Style</string>
-        </resources>
-        EOF
+      - name: Create root build.gradle
+        run: |
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
 
-        cat > app/src/main/res/values/themes.xml << 'EOF'
-        <resources>
-            <style name="Theme.RETUI" parent="Theme.AppCompat.Light.NoActionBar">
-                <item name="android:windowFullscreen">true</item>
-                <item name="android:windowNoTitle">true</item>
-                <item name="android:windowBackground">@android:color/black</item>
-                <item name="android:statusBarColor">@android:color/transparent</item>
-                <item name="android:navigationBarColor">@android:color/transparent</item>
-            </style>
-            <style name="Theme.RETUI.Arch" parent="Theme.RETUI">
-                <item name="android:windowBackground">#0a0a0f</item>
-                <item name="android:colorPrimary">#1793d1</item>
-                <item name="android:colorPrimaryDark">#0d0d1a</item>
-            </style>
-            <style name="Theme.RETUI.Arch.Immersive" parent="Theme.RETUI.Arch">
-                <item name="android:windowFullscreen">true</item>
-            </style>
-        </resources>
-        EOF
+      - name: Create gradle.properties
+        run: |
+          cat > gradle.properties <<'EOF'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
+          org.gradle.daemon=false
+          EOF
 
-        cat > app/src/main/res/values/colors.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <resources>
-            <color name="arch_blue">#1793d1</color>
-            <color name="arch_dark">#0a0a0f</color>
-            <color name="arch_terminal_bg">#1a1a24</color>
-            <color name="arch_terminal_fg">#b8c7e0</color>
-            <color name="arch_green">#27ae60</color>
-            <color name="arch_red">#e74c3c</color>
-            <color name="colorPrimary">#1793d1</color>
-            <color name="colorPrimaryDark">#0d0d1a</color>
-            <color name="colorAccent">#2ecc71</color>
-        </resources>
-        EOF
+      - name: Create app build.gradle
+        run: |
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
 
-        # 5. Feature Manager
-        cat > app/src/main/java/com/retui/features/FeatureManager.kt << 'EOF'
-        package com.retui.features
+          android {
+              namespace 'com.moon.terminal'
+              compileSdk 34
 
-        import android.content.Context
-        import java.io.File
-        import org.json.JSONObject
+              defaultConfig {
+                  applicationId "com.moon.terminal"
+                  minSdk 24
+                  targetSdk 34
 
-        class FeatureManager(private val context: Context) {
-            private val features = mutableMapOf<String, Feature>()
-            private val games = mutableMapOf<String, Game>()
-            private val configDir = File(context.filesDir, "features")
-            private val gamesDir = File(context.filesDir, "games")
-            
-            init {
-                configDir.mkdirs()
-                gamesDir.mkdirs()
-            }
-            
-            fun listFeatures(): String = if (features.isEmpty()) "No features installed" else features.keys.joinToString("\n")
-            fun listGames(): String = if (games.isEmpty()) "No games installed" else games.keys.joinToString("\n")
-        }
-        data class Feature(val name: String, val description: String, val commandList: List<String>)
-        data class Game(val name: String, val description: String, val type: String, val data: JSONObject)
-        EOF
+                  versionCode 1
+                  versionName "1.0"
+              }
 
-        # 6. Terminal Activity & Layout
-        cat > app/src/main/java/com/retui/ui/TerminalActivity.kt << 'EOF'
-        package com.retui.ui
+              buildTypes {
+                  debug {
+                      minifyEnabled false
+                  }
 
-        import android.os.Bundle
-        import android.view.View
-        import android.view.WindowManager
-        import android.view.inputmethod.EditorInfo
-        import android.widget.EditText
-        import android.widget.ScrollView
-        import android.widget.TextView
-        import androidx.appcompat.app.AppCompatActivity
-        import com.retui.features.FeatureManager
-        import java.text.SimpleDateFormat
-        import java.util.*
+                  release {
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile(
+                          'proguard-android-optimize.txt'
+                      ), 'proguard-rules.pro'
+                  }
+              }
 
-        class TerminalActivity : AppCompatActivity() {
-            private lateinit var terminalOutput: TextView
-            private lateinit var commandInput: EditText
-            private lateinit var scrollView: ScrollView
-            private lateinit var featureManager: FeatureManager
-            
-            override fun onCreate(savedInstanceState: Bundle?) {
-                super.onCreate(savedInstanceState)
-                window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-                setContentView(R.layout.activity_terminal)
-                
-                terminalOutput = findViewById(R.id.terminal_output)
-                commandInput = findViewById(R.id.command_input)
-                scrollView = findViewById(R.id.terminal_scroll)
-                featureManager = FeatureManager(this)
-                
-                terminalOutput.text = "RETUI Launcher v1.0.0 (Arch Linux Style)\nType 'help' for commands\n\n"
-                
-                commandInput.setOnEditorActionListener { _, actionId, _ ->
-                    if (actionId == EditorInfo.IME_ACTION_DONE) {
-                        val cmd = commandInput.text.toString().trim()
-                        if (cmd.isNotEmpty()) {
-                            terminalOutput.append("[root@retui ~]# $cmd\n")
-                            val res = when (cmd) {
-                                "help" -> "Commands: ls, pwd, neofetch, clear, date, whoami"
-                                "clear" -> { terminalOutput.text = ""; "" }
-                                "neofetch" -> "OS: RETUI Arch Linux x86_64\nKernel: 5.15.0-arch1"
-                                "ls ->" -> "bin  etc  home  usr"
-                                "pwd" -> "/root/retui"
-                                else -> "bash: $cmd: command not found"
-                            }
-                            if (res.isNotEmpty()) terminalOutput.append("$res\n")
-                            commandInput.text.clear()
-                        }
-                        true
-                    } else false
-                }
-            }
-        }
-        EOF
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
 
-        cat > app/src/main/res/layout/activity_terminal.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:background="#0a0a0f">
-            <ScrollView
-                android:id="@+id/terminal_scroll"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1">
-                <TextView
-                    android:id="@+id/terminal_output"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="12dp"
-                    android:textColor="#b8c7e0"
-                    android:textSize="12sp"
-                    android:typeface="monospace" />
-            </ScrollView>
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:background="#1a1a24"
-                android:padding="8dp">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="[root@retui ~]# "
-                    android:textColor="#2ecc71"
-                    android:textSize="12sp"
-                    android:typeface="monospace" />
-                <EditText
-                    android:id="@+id/command_input"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:background="@null"
-                    android:textColor="#ecf0f1"
-                    android:hint="Type command..."
-                    android:textSize="12sp"
-                    android:typeface="monospace"
-                    android:inputType="text"
-                    android:imeOptions="actionDone"
-                    android:singleLine="true" />
-            </LinearLayout>
-        </LinearLayout>
-        EOF
+          dependencies {
+              implementation 'androidx.core:core-ktx:1.12.0'
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+          }
+          EOF
 
-        # 7. Gradle Configuration Files
-        cat > build.gradle << 'EOF'
-        buildscript {
-            ext.kotlin_version = "1.9.0"
-            repositories { google(); mavenCentral() }
-            dependencies {
-                classpath 'com.android.tools.build:gradle:8.1.0'
-                classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-            }
-        }
-        allprojects { repositories { google(); mavenCentral() } }
-        EOF
+      - name: Create proguard file
+        run: |
+          cat > app/proguard-rules.pro <<'EOF'
+          # Moon Terminal Launcher
+          EOF
 
-        cat > app/build.gradle << 'EOF'
-        plugins {
-            id 'com.android.application'
-            id 'kotlin-android'
-        }
-        android {
-            namespace 'com.retui'
-            compileSdk 33
-            defaultConfig {
-                applicationId "com.retui.launcher"
-                minSdk 24
-                targetSdk 33
-                versionCode 1
-                versionName "1.0.0"
-            }
-            buildTypes {
-                release {
-                    minifyEnabled false
-                }
-            }
-        }
-        dependencies {
-            implementation 'androidx.core:core-ktx:1.10.1'
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.google.android.material:material:1.9.0'
-        }
-        EOF
+      - name: Create AndroidManifest
+        run: |
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
 
-        cat > settings.gradle << 'EOF'
-        pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-        dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-        rootProject.name = "RETUI Launcher"
-        include ':app'
-        EOF
-        echo "✅ Full project successfully scaffolded via cloud runner!"
+          <manifest
+              xmlns:android="http://schemas.android.com/apk/res/android">
 
-    - name: Grant Execute Permission to Gradlew
-      run: |
-        gradle wrapper --gradle-version 8.1
-        chmod +x gradlew
+              <uses-permission
+                  android:name="android.permission.INTERNET" />
 
-    - name: Build APK
-      run: |
-        if [ "${{ github.event.inputs.build_type }}" == "release" ] || [ "${{ github.ref }}" == "refs/tags/*" ]; then
-          ./gradlew assembleRelease
-        else
-          ./gradlew assembleDebug
-        fi
+              <uses-permission
+                  android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: retui-launcher-apk
-        path: app/build/outputs/apk/
+              <uses-permission
+                  android:name="android.permission.VIBRATE" />
+
+              <application
+                  android:allowBackup="true"
+                  android:label="@string/app_name"
+                  android:theme="@style/Theme.MoonTerminal"
+                  android:hardwareAccelerated="true">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="portrait"
+                      android:launchMode="singleTask">
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+
+                          <category
+                              android:name="android.intent.category.LAUNCHER" />
+
+                      </intent-filter>
+
+                      <!-- Allows Moon Terminal Launcher to be selected
+                           as the Android Home application. -->
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+
+                          <category
+                              android:name="android.intent.category.HOME" />
+
+                          <category
+                              android:name="android.intent.category.DEFAULT" />
+                      </intent-filter>
+
+                  </activity>
+
+              </application>
+
+          </manifest>
+          EOF
+
+      - name: Create strings.xml
+        run: |
+          cat > app/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+              <string name="app_name">Moon Terminal Launcher</string>
+          </resources>
+          EOF
+
+      - name: Create colors.xml
+        run: |
+          cat > app/src/main/res/values/colors.xml <<'EOF'
+          <resources>
+
+              <color name="moon_background">#05070A</color>
+              <color name="moon_terminal">#090D12</color>
+              <color name="moon_panel">#111820</color>
+
+              <color name="moon_green">#38E878</color>
+              <color name="moon_blue">#4DA6FF</color>
+              <color name="moon_purple">#A855F7</color>
+
+              <color name="moon_text">#D8E2EA</color>
+              <color name="moon_muted">#71808C</color>
+
+          </resources>
+          EOF
+
+      - name: Create theme
+        run: |
+          cat > app/src/main/res/values/themes.xml <<'EOF'
+          <resources>
+
+              <style
+                  name="Theme.MoonTerminal"
+                  parent="Theme.AppCompat.NoActionBar">
+
+                  <item name="android:fontFamily">monospace</item>
+
+                  <item name="android:windowFullscreen">true</item>
+
+                  <item name="android:windowActionModeOverlay">
+                      true
+                  </item>
+
+                  <item name="android:windowLightStatusBar">
+                      false
+                  </item>
+
+                  <item name="android:statusBarColor">
+                      @android:color/transparent
+                  </item>
+
+                  <item name="android:navigationBarColor">
+                      @android:color/black
+                  </item>
+
+                  <item name="android:windowBackground">
+                      @color/moon_background
+                  </item>
+
+              </style>
+
+          </resources>
+          EOF
+
+      - name: Create terminal layout
+        run: |
+          cat > app/src/main/res/layout/activity_main.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+
+          <LinearLayout
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:background="#05070A">
+
+              <TextView
+                  android:id="@+id/header"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:padding="12dp"
+                  android:text="🌙 MOON TERMINAL"
+                  android:textColor="#38E878"
+                  android:textSize="18sp"
+                  android:typeface="monospace"
+                  android:background="#090D12" />
+
+              <ScrollView
+                  android:id="@+id/scroll"
+                  android:layout_width="match_parent"
+                  android:layout_height="0dp"
+                  android:layout_weight="1"
+                  android:background="#05070A"
+                  android:fillViewport="true">
+
+                  <TextView
+                      android:id="@+id/output"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:padding="12dp"
+                      android:textColor="#D8E2EA"
+                      android:textSize="14sp"
+                      android:typeface="monospace"
+                      android:lineSpacingExtra="3dp" />
+
+              </ScrollView>
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="horizontal"
+                  android:padding="6dp"
+                  android:background="#111820">
+
+                  <TextView
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="moon@android:$ "
+                      android:textColor="#38E878"
+                      android:textSize="14sp"
+                      android:typeface="monospace" />
+
+                  <EditText
+                      android:id="@+id/input"
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:background="@android:color/transparent"
+                      android:singleLine="true"
+                      android:textColor="#D8E2EA"
+                      android:textColorHint="#71808C"
+                      android:textSize="14sp"
+                      android:typeface="monospace"
+                      android:hint="command" />
+
+              </LinearLayout>
+
+          </LinearLayout>
+          EOF
+
+      - name: Create MainActivity
+        run: |
+          cat > app/src/main/java/com/moon/terminal/MainActivity.java <<'EOF'
+          package com.moon.terminal;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.os.Build;
+          import android.os.Environment;
+          import android.os.StatFs;
+          import android.graphics.Color;
+          import android.view.KeyEvent;
+          import android.view.View;
+          import android.view.Window;
+          import android.widget.EditText;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+
+          import java.text.SimpleDateFormat;
+          import java.util.Date;
+          import java.util.Locale;
+
+          public class MainActivity extends Activity {
+
+              private TextView output;
+              private EditText input;
+              private ScrollView scroll;
+
+              private boolean rainbow = false;
+
+              @Override
+              protected void onCreate(Bundle state) {
+                  super.onCreate(state);
+
+                  requestImmersive();
+
+                  setContentView(
+                      getResources().getIdentifier(
+                          "activity_main",
+                          "layout",
+                          getPackageName()
+                      )
+                  );
+
+                  output = findViewById(
+                      getResources().getIdentifier(
+                          "output",
+                          "id",
+                          getPackageName()
+                      )
+                  );
+
+                  input = findViewById(
+                      getResources().getIdentifier(
+                          "input",
+                          "id",
+                          getPackageName()
+                      )
+                  );
+
+                  scroll = findViewById(
+                      getResources().getIdentifier(
+                          "scroll",
+                          "id",
+                          getPackageName()
+                      )
+                  );
+
+                  welcome();
+
+                  input.setOnEditorActionListener(
+                      (view, actionId, event) -> {
+
+                          if (event != null
+                                  && event.getKeyCode()
+                                  == KeyEvent.KEYCODE_ENTER) {
+
+                              execute();
+
+                              return true;
+                          }
+
+                          return false;
+                      }
+                  );
+
+                  input.setOnKeyListener(
+                      (view, keyCode, event) -> {
+
+                          if (keyCode == KeyEvent.KEYCODE_ENTER
+                                  && event.getAction()
+                                  == KeyEvent.ACTION_DOWN) {
+
+                              execute();
+
+                              return true;
+                          }
+
+                          return false;
+                      }
+                  );
+
+                  input.requestFocus();
+              }
+
+              private void requestImmersive() {
+
+                  getWindow().setFlags(
+                      WindowManagerFlags.FULLSCREEN,
+                      WindowManagerFlags.FULLSCREEN
+                  );
+
+                  getWindow().getDecorView().setSystemUiVisibility(
+                      View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                      | View.SYSTEM_UI_FLAG_FULLSCREEN
+                      | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                  );
+              }
+
+              private void welcome() {
+
+                  append(
+                      "╔══════════════════════════════════════╗\n"
+                      + "║       🌙 MOON TERMINAL LAUNCHER      ║\n"
+                      + "║              v1.0                    ║\n"
+                      + "╚══════════════════════════════════════╝\n\n"
+                      + "Welcome to Moon Terminal.\n\n"
+                      + "Type 'help' to see available commands.\n\n"
+                  );
+              }
+
+              private void execute() {
+
+                  String command = input.getText()
+                      .toString()
+                      .trim();
+
+                  if (command.isEmpty()) {
+                      return;
+                  }
+
+                  append(
+                      "moon@android:$ "
+                      + command
+                      + "\n"
+                  );
+
+                  String result = command(command);
+
+                  if (!result.isEmpty()) {
+                      append(result + "\n");
+                  }
+
+                  input.setText("");
+
+                  scroll.post(
+                      () -> scroll.fullScroll(
+                          View.FOCUS_DOWN
+                      )
+                  );
+              }
+
+              private String command(String raw) {
+
+                  String[] parts = raw.split("\\s+");
+
+                  String cmd = parts[0].toLowerCase(
+                      Locale.ROOT
+                  );
+
+                  switch (cmd) {
+
+                      case "help":
+                          return help();
+
+                      case "clear":
+                          output.setText("");
+                          return "";
+
+                      case "neofetch":
+                          return neofetch();
+
+                      case "sysinfo":
+                          return sysinfo();
+
+                      case "free":
+                          return memory();
+
+                      case "df":
+                          return disk();
+
+                      case "date":
+                          return new SimpleDateFormat(
+                              "yyyy-MM-dd HH:mm:ss",
+                              Locale.getDefault()
+                          ).format(new Date());
+
+                      case "whoami":
+                          return "moon";
+
+                      case "uname":
+                          return "Moon Linux android aarch64";
+
+                      case "pwd":
+                          return "/home/moon";
+
+                      case "echo":
+                          return raw.length() > 5
+                              ? raw.substring(5)
+                              : "";
+
+                      case "ls":
+                          return "Documents  Downloads  Music  Pictures  Games";
+
+                      case "cowsay":
+                          return cowsay(
+                              raw.length() > 7
+                                  ? raw.substring(7).trim()
+                                  : "Moon Terminal!"
+                          );
+
+                      case "fortune":
+                          return fortune();
+
+                      case "theme":
+                          return themes();
+
+                      case "rainbow":
+                          rainbow = !rainbow;
+
+                          return rainbow
+                              ? "🌈 Rainbow mode enabled."
+                              : "Rainbow mode disabled.";
+
+                      case "ascii":
+                          return tux();
+
+                      default:
+                          return "Command not found: "
+                              + cmd
+                              + "\nType 'help' for commands.";
+                  }
+              }
+
+              private String help() {
+
+                  return
+                      "SYSTEM\n"
+                      + "  neofetch   System overview\n"
+                      + "  sysinfo    Android information\n"
+                      + "  free       Memory information\n"
+                      + "  df         Storage information\n"
+                      + "  date       Current date/time\n"
+                      + "  uname      System name\n"
+                      + "  whoami     Current user\n\n"
+                      + "FILES\n"
+                      + "  ls         List directories\n"
+                      + "  pwd        Current directory\n"
+                      + "  echo       Print text\n\n"
+                      + "FUN\n"
+                      + "  cowsay     ASCII cow\n"
+                      + "  fortune    Random message\n"
+                      + "  ascii       ASCII art\n\n"
+                      + "CUSTOM\n"
+                      + "  theme      List themes\n"
+                      + "  rainbow    Toggle rainbow mode\n"
+                      + "  clear      Clear terminal";
+              }
+
+              private String neofetch() {
+
+                  return
+                      "       ██████████   Moon Terminal\n"
+                      + "       ██████████   OS: Moon Android\n"
+                      + "       ██████████   Device: "
+                      + Build.MANUFACTURER
+                      + " "
+                      + Build.MODEL
+                      + "\n"
+                      + "       ██████████   Android: "
+                      + Build.VERSION.RELEASE
+                      + "\n"
+                      + "       ██████████   API: "
+                      + Build.VERSION.SDK_INT
+                      + "\n"
+                      + "       ██████████   ABI: "
+                      + Build.SUPPORTED_ABIS[0];
+              }
+
+              private String sysinfo() {
+
+                  return
+                      "System Information\n"
+                      + "────────────────────\n"
+                      + "Manufacturer: "
+                      + Build.MANUFACTURER
+                      + "\nModel: "
+                      + Build.MODEL
+                      + "\nAndroid: "
+                      + Build.VERSION.RELEASE
+                      + "\nAPI: "
+                      + Build.VERSION.SDK_INT
+                      + "\nArchitecture: "
+                      + Build.SUPPORTED_ABIS[0];
+              }
+
+              private String memory() {
+
+                  Runtime r = Runtime.getRuntime();
+
+                  long total = r.totalMemory() / 1048576;
+                  long free = r.freeMemory() / 1048576;
+                  long max = r.maxMemory() / 1048576;
+
+                  return
+                      "Memory\n"
+                      + "Total: "
+                      + total
+                      + " MB\n"
+                      + "Free: "
+                      + free
+                      + " MB\n"
+                      + "Max: "
+                      + max
+                      + " MB";
+              }
+
+              private String disk() {
+
+                  try {
+
+                      StatFs stat = new StatFs(
+                          Environment.getDataDirectory()
+                              .getPath()
+                      );
+
+                      long total =
+                          stat.getBlockCountLong()
+                          * stat.getBlockSizeLong();
+
+                      long available =
+                          stat.getAvailableBlocksLong()
+                          * stat.getBlockSizeLong();
+
+                      double totalGb =
+                          total / 1073741824.0;
+
+                      double availableGb =
+                          available / 1073741824.0;
+
+                      return String.format(
+                          Locale.US,
+                          "Storage\nTotal: %.2f GB\nAvailable: %.2f GB",
+                          totalGb,
+                          availableGb
+                      );
+
+                  } catch (Exception e) {
+
+                      return "Unable to read storage information.";
+                  }
+              }
+
+              private String cowsay(String message) {
+
+                  return
+                      " ______________________\n"
+                      + "< "
+                      + message
+                      + " >\n"
+                      + " ----------------------\n"
+                      + "        \\\n"
+                      + "         ^__^\n"
+                      + "         (oo)\\_______\n"
+                      + "          (__)\\       )\\/\\\n"
+                      + "              ||----w |\n"
+                      + "              ||     ||";
+              }
+
+              private String fortune() {
+
+                  String[] fortunes = {
+
+                      "Keep exploring.",
+                      "Every command teaches you something.",
+                      "Build something amazing today.",
+                      "The terminal is your playground.",
+                      "Moon Terminal is just getting started."
+
+                  };
+
+                  return fortunes[
+                      (int)(Math.random()
+                      * fortunes.length)
+                  ];
+              }
+
+              private String themes() {
+
+                  return
+                      "Moon Themes\n"
+                      + "────────────\n"
+                      + "midnight\n"
+                      + "cyberpunk\n"
+                      + "ocean\n"
+                      + "forest\n"
+                      + "sunset\n"
+                      + "retro\n"
+                      + "monochrome\n"
+                      + "rainbow";
+              }
+
+              private String tux() {
+
+                  return
+                      "   .--.\n"
+                      + "  |o_o |\n"
+                      + "  |:_/ |\n"
+                      + " //   \\\\ \\\n"
+                      + "(|     | )\n"
+                      + "/'\\_   _/`\\\n"
+                      + "\\___)=(___/";
+              }
+
+              private void append(String text) {
+
+                  if (rainbow) {
+
+                      output.setTextColor(
+                          Color.rgb(170, 100, 255)
+                      );
+
+                  } else {
+
+                      output.setTextColor(
+                          Color.rgb(216, 226, 234)
+                      );
+                  }
+
+                  output.append(text);
+              }
+
+              private static class WindowManagerFlags {
+
+                  static final int FULLSCREEN = 1024;
+
+              }
+          }
+          EOF
+
+      - name: Generate Gradle wrapper
+        run: |
+          gradle wrapper --gradle-version 8.2
+
+      - name: Build Moon Terminal Launcher
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Find APK
+        run: |
+          find app/build/outputs -type f -name "*.apk" -print
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moon-Terminal-Launcher-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
