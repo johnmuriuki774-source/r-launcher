@@ -6,6 +6,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 
 class AniListApi {
@@ -15,8 +16,8 @@ class AniListApi {
     private val endpoint =
         "https://graphql.anilist.co"
 
-    suspend fun trending(): List<Anime> =
-        queryAnime(
+    suspend fun trending(): List<Anime> {
+        return queryAnime(
             """
             query {
                 Page(perPage: 20) {
@@ -43,11 +44,13 @@ class AniListApi {
             }
             """
         )
+    }
 
     suspend fun search(
         text: String
-    ): List<Anime> =
-        queryAnime(
+    ): List<Anime> {
+
+        return queryAnime(
             """
             query {
                 Page(perPage: 30) {
@@ -75,57 +78,168 @@ class AniListApi {
             }
             """
         )
+    }
+
+    suspend fun getAnime(
+        id: Int
+    ): AnimeDetails {
+
+        return withContext(Dispatchers.IO) {
+
+            val query =
+                """
+                query {
+                    Media(id: $id, type: ANIME) {
+
+                        id
+
+                        title {
+                            romaji
+                            english
+                        }
+
+                        description
+                        episodes
+                        status
+                        format
+                        genres
+                        averageScore
+
+                        coverImage {
+                            large
+                        }
+
+                        relations {
+                            edges {
+
+                                relationType(version: 2)
+
+                                node {
+                                    id
+
+                                    title {
+                                        romaji
+                                        english
+                                    }
+
+                                    format
+                                    episodes
+
+                                    coverImage {
+                                        large
+                                    }
+
+                                    averageScore
+                                }
+                            }
+                        }
+
+                        recommendations(
+                            sort: RATING_DESC
+                            perPage: 15
+                        ) {
+
+                            nodes {
+
+                                rating
+
+                                mediaRecommendation {
+
+                                    id
+
+                                    title {
+                                        romaji
+                                        english
+                                    }
+
+                                    format
+                                    episodes
+
+                                    coverImage {
+                                        large
+                                    }
+
+                                    averageScore
+                                }
+                            }
+                        }
+                    }
+                }
+                """
+
+            val json =
+                execute(query)
+
+            parseDetails(
+                json
+                    .getJSONObject("data")
+                    .getJSONObject("Media")
+            )
+        }
+    }
 
     private suspend fun queryAnime(
         query: String
-    ): List<Anime> =
-        withContext(Dispatchers.IO) {
+    ): List<Anime> {
 
-            val body = JSONObject()
+        return withContext(Dispatchers.IO) {
+
+            val json =
+                execute(query)
+
+            val media =
+                json
+                    .getJSONObject("data")
+                    .getJSONObject("Page")
+                    .getJSONArray("media")
+
+            parseAnimeList(media)
+        }
+    }
+
+    private fun execute(
+        query: String
+    ): JSONObject {
+
+        val body =
+            JSONObject()
                 .put("query", query)
                 .toString()
 
-            val request =
-                Request.Builder()
-                    .url(endpoint)
-                    .post(
-                        body.toRequestBody(
-                            "application/json"
-                                .toMediaType()
-                        )
+        val request =
+            Request.Builder()
+                .url(endpoint)
+                .post(
+                    body.toRequestBody(
+                        "application/json"
+                            .toMediaType()
                     )
-                    .build()
+                )
+                .build()
 
-            client.newCall(request)
-                .execute()
-                .use { response ->
+        client.newCall(request)
+            .execute()
+            .use { response ->
 
-                    if (!response.isSuccessful) {
-                        throw Exception(
-                            "AniList error: ${response.code}"
-                        )
-                    }
+                if (!response.isSuccessful) {
 
-                    val json =
-                        JSONObject(
-                            response.body
-                                ?.string()
-                                ?: throw Exception(
-                                    "Empty response"
-                                )
-                        )
-
-                    parse(
-                        json
-                            .getJSONObject("data")
-                            .getJSONObject("Page")
-                            .getJSONArray("media")
+                    throw Exception(
+                        "AniList request failed: ${response.code}"
                     )
                 }
-        }
 
-    private fun parse(
-        array: org.json.JSONArray
+                return JSONObject(
+                    response.body
+                        ?.string()
+                        ?: throw Exception(
+                            "Empty AniList response"
+                        )
+                )
+            }
+    }
+
+    private fun parseAnimeList(
+        array: JSONArray
     ): List<Anime> {
 
         val result =
@@ -133,89 +247,179 @@ class AniListApi {
 
         for (i in 0 until array.length()) {
 
-            val item =
+            result += parseAnime(
                 array.getJSONObject(i)
-
-            val title =
-                item.getJSONObject("title")
-
-            val english =
-                title.optString("english")
-
-            val romaji =
-                title.optString("romaji")
-
-            val genres =
-                mutableListOf<String>()
-
-            val genreArray =
-                item.optJSONArray("genres")
-
-            if (genreArray != null) {
-
-                for (g in
-                    0 until genreArray.length()
-                ) {
-
-                    genres +=
-                        genreArray.getString(g)
-                }
-            }
-
-            val cover =
-                item
-                    .optJSONObject("coverImage")
-                    ?.optString("large")
-                    ?: ""
-
-            result += Anime(
-
-                id = item.getInt("id"),
-
-                title =
-                    if (english.isNotBlank())
-                        english
-                    else
-                        romaji,
-
-                description =
-                    item.optString(
-                        "description"
-                    ),
-
-                episodes =
-                    if (
-                        item.isNull("episodes")
-                    )
-                        null
-                    else
-                        item.optInt(
-                            "episodes"
-                        ),
-
-                status =
-                    item.optString(
-                        "status"
-                    ),
-
-                format =
-                    item.optString(
-                        "format"
-                    ),
-
-                genres = genres,
-
-                imageUrl = cover,
-
-                score =
-                    item.optDouble(
-                        "averageScore",
-                        0.0
-                    )
             )
         }
 
         return result
+    }
+
+    private fun parseAnime(
+        item: JSONObject
+    ): Anime {
+
+        val title =
+            item.getJSONObject("title")
+
+        val english =
+            title.optString("english")
+
+        val romaji =
+            title.optString("romaji")
+
+        val genres =
+            mutableListOf<String>()
+
+        val genreArray =
+            item.optJSONArray("genres")
+
+        if (genreArray != null) {
+
+            for (i in
+                0 until genreArray.length()
+            ) {
+
+                genres +=
+                    genreArray.getString(i)
+            }
+        }
+
+        return Anime(
+
+            id =
+                item.getInt("id"),
+
+            title =
+                if (english.isNotBlank())
+                    english
+                else
+                    romaji,
+
+            description =
+                item.optString(
+                    "description"
+                ),
+
+            episodes =
+                if (item.isNull("episodes"))
+                    null
+                else
+                    item.optInt(
+                        "episodes"
+                    ),
+
+            status =
+                item.optString("status"),
+
+            format =
+                item.optString("format"),
+
+            genres =
+                genres,
+
+            imageUrl =
+                item
+                    .optJSONObject(
+                        "coverImage"
+                    )
+                    ?.optString("large")
+                    ?: "",
+
+            score =
+                item.optDouble(
+                    "averageScore",
+                    0.0
+                )
+        )
+    }
+
+    private fun parseDetails(
+        item: JSONObject
+    ): AnimeDetails {
+
+        val anime =
+            parseAnime(item)
+
+        val relations =
+            mutableListOf<AnimeRelation>()
+
+        val relationEdges =
+            item
+                .getJSONObject("relations")
+                .getJSONArray("edges")
+
+        for (i in
+            0 until relationEdges.length()
+        ) {
+
+            val edge =
+                relationEdges.getJSONObject(i)
+
+            val node =
+                edge.getJSONObject("node")
+
+            relations += AnimeRelation(
+
+                type =
+                    edge.optString(
+                        "relationType"
+                    ),
+
+                anime =
+                    parseAnime(node)
+            )
+        }
+
+        val recommendations =
+            mutableListOf<AnimeRecommendation>()
+
+        val recommendationNodes =
+            item
+                .getJSONObject(
+                    "recommendations"
+                )
+                .getJSONArray("nodes")
+
+        for (i in
+            0 until recommendationNodes.length()
+        ) {
+
+            val node =
+                recommendationNodes
+                    .getJSONObject(i)
+
+            val media =
+                node.optJSONObject(
+                    "mediaRecommendation"
+                )
+
+            if (media != null) {
+
+                recommendations +=
+                    AnimeRecommendation(
+
+                        rating =
+                            node.optInt(
+                                "rating",
+                                0
+                            ),
+
+                        anime =
+                            parseAnime(media)
+                    )
+            }
+        }
+
+        return AnimeDetails(
+
+            anime = anime,
+
+            relations = relations,
+
+            recommendations =
+                recommendations
+        )
     }
 
     private fun escape(
@@ -228,3 +432,28 @@ class AniListApi {
             .replace("\n", " ")
     }
 }
+
+data class AnimeDetails(
+
+    val anime: Anime,
+
+    val relations:
+        List<AnimeRelation>,
+
+    val recommendations:
+        List<AnimeRecommendation>
+)
+
+data class AnimeRelation(
+
+    val type: String,
+
+    val anime: Anime
+)
+
+data class AnimeRecommendation(
+
+    val rating: Int,
+
+    val anime: Anime
+)
