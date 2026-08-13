@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -50,26 +49,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.Image
-import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.launch
-
-data class Anime(
-    val id: Int,
-    val title: String,
-    val description: String = "",
-    val episodes: Int? = null,
-    val status: String = "",
-    val format: String = "",
-    val genres: List<String> = emptyList(),
-    val imageUrl: String = "",
-    val score: Double = 0.0
-)
 
 class MainActivity : ComponentActivity() {
 
@@ -90,7 +74,6 @@ fun MoonAnimeApp() {
         Surface(
             modifier = Modifier.fillMaxSize()
         ) {
-
             MoonAnimeMain()
         }
     }
@@ -144,13 +127,14 @@ fun MoonAnimeMain() {
             NavigationBar {
 
                 NavigationBarItem(
-                    selected = selectedTab == MainTab.HOME,
+                    selected =
+                        selectedTab == MainTab.HOME,
                     onClick = {
                         selectedTab = MainTab.HOME
                     },
                     icon = {
                         Icon(
-                            Icons.Default.Home,
+                            imageVector = Icons.Default.Home,
                             contentDescription = "Home"
                         )
                     },
@@ -160,13 +144,14 @@ fun MoonAnimeMain() {
                 )
 
                 NavigationBarItem(
-                    selected = selectedTab == MainTab.SEARCH,
+                    selected =
+                        selectedTab == MainTab.SEARCH,
                     onClick = {
                         selectedTab = MainTab.SEARCH
                     },
                     icon = {
                         Icon(
-                            Icons.Default.Search,
+                            imageVector = Icons.Default.Search,
                             contentDescription = "Search"
                         )
                     },
@@ -176,13 +161,14 @@ fun MoonAnimeMain() {
                 )
 
                 NavigationBarItem(
-                    selected = selectedTab == MainTab.LIBRARY,
+                    selected =
+                        selectedTab == MainTab.LIBRARY,
                     onClick = {
                         selectedTab = MainTab.LIBRARY
                     },
                     icon = {
                         Icon(
-                            Icons.Default.Bookmark,
+                            imageVector = Icons.Default.Bookmark,
                             contentDescription = "Library"
                         )
                     },
@@ -236,8 +222,6 @@ fun HomeScreen(
     onAnimeClick: (Anime) -> Unit
 ) {
 
-    val scope = rememberCoroutineScope()
-
     var trending by remember {
         mutableStateOf<List<Anime>>(emptyList())
     }
@@ -246,32 +230,36 @@ fun HomeScreen(
         mutableStateOf(true)
     }
 
+    var error by remember {
+        mutableStateOf<String?>(null)
+    }
+
     LaunchedEffect(Unit) {
 
-        scope.launch {
+        try {
 
-            loading = true
+            trending = AniListApi().trending()
 
-            try {
+        } catch (e: Exception) {
 
-                trending =
-                    AniListApi()
-                        .trending()
+            error =
+                e.message ?: "Unable to load anime"
 
-            } catch (_: Exception) {
-
-                trending = emptyList()
-            }
+        } finally {
 
             loading = false
         }
     }
 
     LazyColumn(
+
         modifier = Modifier
             .fillMaxSize()
             .padding(padding),
-        contentPadding = PaddingValues(16.dp),
+
+        contentPadding =
+            PaddingValues(16.dp),
+
         verticalArrangement =
             Arrangement.spacedBy(18.dp)
     ) {
@@ -282,11 +270,13 @@ fun HomeScreen(
                 text = "Welcome to MoonAnime",
                 style =
                     MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight =
+                    FontWeight.Bold
             )
 
             Spacer(
-                Modifier.height(4.dp)
+                modifier =
+                    Modifier.height(4.dp)
             )
 
             Text(
@@ -304,25 +294,57 @@ fun HomeScreen(
 
         item {
 
-            if (loading) {
+            when {
 
-                CircularProgressIndicator()
+                loading -> {
 
-            } else {
+                    Box(
+                        modifier =
+                            Modifier.fillMaxWidth(),
+                        contentAlignment =
+                            Alignment.Center
+                    ) {
 
-                LazyRow(
-                    horizontalArrangement =
-                        Arrangement.spacedBy(12.dp)
-                ) {
+                        CircularProgressIndicator()
+                    }
+                }
 
-                    items(trending) { anime ->
+                error != null -> {
 
-                        AnimePoster(
-                            anime = anime,
-                            onClick = {
-                                onAnimeClick(anime)
-                            }
-                        )
+                    Text(
+                        text =
+                            error ?: "Unknown error",
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .error
+                    )
+                }
+
+                trending.isEmpty() -> {
+
+                    Text(
+                        text =
+                            "No anime found."
+                    )
+                }
+
+                else -> {
+
+                    LazyRow(
+                        horizontalArrangement =
+                            Arrangement.spacedBy(12.dp)
+                    ) {
+
+                        items(trending) { anime ->
+
+                            AnimePoster(
+                                anime = anime,
+                                onClick = {
+                                    onAnimeClick(anime)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -331,7 +353,8 @@ fun HomeScreen(
         item {
 
             SectionTitle(
-                title = "🎯 Recommended for you"
+                title =
+                    "🎯 Recommendations"
             )
         }
 
@@ -339,7 +362,7 @@ fun HomeScreen(
 
             Text(
                 text =
-                    "Your personalized recommendations will appear here after your library and watch history are connected."
+                    "Personalized recommendations will use your library and watch history."
             )
         }
     }
@@ -351,7 +374,8 @@ fun SearchScreen(
     onAnimeClick: (Anime) -> Unit
 ) {
 
-    val scope = rememberCoroutineScope()
+    val scope =
+        rememberCoroutineScope()
 
     var query by remember {
         mutableStateOf("")
@@ -365,7 +389,12 @@ fun SearchScreen(
         mutableStateOf(false)
     }
 
+    var error by remember {
+        mutableStateOf<String?>(null)
+    }
+
     Column(
+
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
@@ -391,18 +420,22 @@ fun SearchScreen(
         )
 
         Spacer(
-            Modifier.height(8.dp)
+            modifier =
+                Modifier.height(8.dp)
         )
 
         Button(
 
             onClick = {
 
-                if (query.isBlank()) return@Button
+                if (query.isBlank()) {
+                    return@Button
+                }
 
                 scope.launch {
 
                     loading = true
+                    error = null
 
                     try {
 
@@ -410,33 +443,60 @@ fun SearchScreen(
                             AniListApi()
                                 .search(query)
 
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
 
-                        results = emptyList()
+                        results =
+                            emptyList()
+
+                        error =
+                            e.message
+                                ?: "Search failed"
+
+                    } finally {
+
+                        loading = false
                     }
-
-                    loading = false
                 }
             },
+
+            enabled = !loading,
 
             modifier =
                 Modifier.fillMaxWidth()
         ) {
 
-            Text("Search")
+            Text(
+                if (loading)
+                    "Searching..."
+                else
+                    "Search"
+            )
         }
 
         Spacer(
-            Modifier.height(16.dp)
+            modifier =
+                Modifier.height(16.dp)
         )
 
-        if (loading) {
+        if (error != null) {
+
+            Text(
+                text =
+                    error ?: "",
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .error
+            )
+
+        } else if (loading) {
 
             CircularProgressIndicator()
 
         } else {
 
             LazyColumn(
+
                 verticalArrangement =
                     Arrangement.spacedBy(8.dp)
             ) {
@@ -462,6 +522,7 @@ fun LibraryScreen(
 ) {
 
     Column(
+
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
@@ -472,11 +533,13 @@ fun LibraryScreen(
             text = "My Library",
             style =
                 MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
+            fontWeight =
+                FontWeight.Bold
         )
 
         Spacer(
-            Modifier.height(16.dp)
+            modifier =
+                Modifier.height(16.dp)
         )
 
         Text(
@@ -499,8 +562,9 @@ fun AnimeDetailsScreen(
             TopAppBar(
 
                 title = {
+
                     Text(
-                        anime.title,
+                        text = anime.title,
                         maxLines = 1,
                         overflow =
                             TextOverflow.Ellipsis
@@ -513,7 +577,13 @@ fun AnimeDetailsScreen(
                         onClick = onBack
                     ) {
 
-                        Text("←")
+                        Text(
+                            text = "←",
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .titleLarge
+                        )
                     }
                 }
             )
@@ -536,11 +606,47 @@ fun AnimeDetailsScreen(
 
             item {
 
+                if (anime.imageUrl.isNotBlank()) {
+
+                    coil3.compose.AsyncImage(
+
+                        model =
+                            anime.imageUrl,
+
+                        contentDescription =
+                            anime.title,
+
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(300.dp)
+                                .clip(
+                                    RoundedCornerShape(
+                                        16.dp
+                                    )
+                                ),
+
+                        contentScale =
+                            ContentScale.Crop
+                    )
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(14.dp)
+                    )
+                }
+            }
+
+            item {
+
                 Text(
-                    anime.title,
+                    text = anime.title,
                     style =
-                        MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+                        MaterialTheme
+                            .typography
+                            .headlineSmall,
+                    fontWeight =
+                        FontWeight.Bold
                 )
             }
 
@@ -549,17 +655,37 @@ fun AnimeDetailsScreen(
                 Row {
 
                     Text(
-                        "Format: ${anime.format}"
+                        text =
+                            "Format: ${
+                                anime.format.ifBlank {
+                                    "Unknown"
+                                }
+                            }"
                     )
 
                     Spacer(
-                        Modifier.width(12.dp)
+                        modifier =
+                            Modifier.width(12.dp)
                     )
 
                     Text(
-                        "Episodes: ${
-                            anime.episodes ?: "?"
-                        }"
+                        text =
+                            "Episodes: ${
+                                anime.episodes ?: "?"
+                            }"
+                    )
+                }
+            }
+
+            item {
+
+                if (anime.score > 0) {
+
+                    Text(
+                        text =
+                            "⭐ ${
+                                anime.score / 10.0
+                            } / 10"
                     )
                 }
             }
@@ -569,8 +695,11 @@ fun AnimeDetailsScreen(
                 if (anime.genres.isNotEmpty()) {
 
                     Text(
-                        anime.genres
-                            .joinToString(" • ")
+                        text =
+                            anime.genres
+                                .joinToString(
+                                    " • "
+                                )
                     )
                 }
             }
@@ -579,15 +708,48 @@ fun AnimeDetailsScreen(
 
                 Text(
                     text =
-                        "Watch Order",
+                        "Status: ${
+                            anime.status.ifBlank {
+                                "Unknown"
+                            }
+                        }"
+                )
+            }
+
+            item {
+
+                if (
+                    anime.description
+                        .isNotBlank()
+                ) {
+
+                    Text(
+                        text =
+                            anime.description
+                                .replace(
+                                    Regex("<[^>]*>"),
+                                    ""
+                                )
+                    )
+                }
+            }
+
+            item {
+
+                Text(
+                    text =
+                        "🔢 Watch Order",
                     style =
-                        MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                        MaterialTheme
+                            .typography
+                            .titleLarge,
+                    fontWeight =
+                        FontWeight.Bold
                 )
 
                 Text(
                     text =
-                        "Related titles and recommended viewing order will appear here."
+                        "Related titles and the recommended viewing order will be loaded from AniList."
                 )
             }
 
@@ -595,14 +757,18 @@ fun AnimeDetailsScreen(
 
                 Text(
                     text =
-                        "Recommendations",
+                        "🎯 Recommendations",
                     style =
-                        MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                        MaterialTheme
+                            .typography
+                            .titleLarge,
+                    fontWeight =
+                        FontWeight.Bold
                 )
 
                 Text(
-                    "More recommendations will be connected to AniList in the next layer."
+                    text =
+                        "Similar anime will appear here."
                 )
             }
         }
@@ -616,108 +782,62 @@ fun AnimePoster(
 ) {
 
     Card(
+
         modifier = Modifier
             .width(145.dp)
-            .clickable(onClick = onClick)
+            .clickable(
+                onClick = onClick
+            )
     ) {
 
         Column {
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(205.dp)
-                    .background(
-                        MaterialTheme
-                            .colorScheme
-                            .surfaceVariant
-                    )
+            if (
+                anime.imageUrl.isNotBlank()
             ) {
 
-                Text(
-                    text = "ANIME",
+                coil3.compose.AsyncImage(
+
+                    model =
+                        anime.imageUrl,
+
+                    contentDescription =
+                        anime.title,
+
                     modifier =
-                        Modifier.align(
-                            Alignment.Center
-                        )
+                        Modifier
+                            .fillMaxWidth()
+                            .height(205.dp),
+
+                    contentScale =
+                        ContentScale.Crop
                 )
+
+            } else {
+
+                Box(
+
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(205.dp)
+                            .background(
+                                MaterialTheme
+                                    .colorScheme
+                                    .surfaceVariant
+                            ),
+
+                    contentAlignment =
+                        Alignment.Center
+                ) {
+
+                    Icon(
+                        imageVector =
+                            Icons.Default.Tv,
+                        contentDescription =
+                            null
+                    )
+                }
             }
 
-            Text(
-                text = anime.title,
-                modifier =
-                    Modifier.padding(8.dp),
-                maxLines = 2,
-                overflow =
-                    TextOverflow.Ellipsis,
-                fontWeight =
-                    FontWeight.SemiBold
-            )
-        }
-    }
-}
-
-@Composable
-fun AnimeListItem(
-    anime: Anime,
-    onClick: () -> Unit
-) {
-
-    Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable(
-                    onClick = onClick
-                )
-    ) {
-
-        Column(
-            modifier =
-                Modifier.padding(14.dp)
-        ) {
-
-            Text(
-                anime.title,
-                fontWeight =
-                    FontWeight.Bold
-            )
-
-            Spacer(
-                Modifier.height(4.dp)
-            )
-
-            Text(
-                "${anime.format} • " +
-                    "${anime.episodes ?: "?"} episodes"
-            )
-
-            if (anime.genres.isNotEmpty()) {
-
-                Spacer(
-                    Modifier.height(4.dp)
-                )
-
-                Text(
-                    anime.genres
-                        .take(4)
-                        .joinToString(" • ")
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun SectionTitle(
-    title: String
-) {
-
-    Text(
-        text = title,
-        style =
-            MaterialTheme.typography.titleLarge,
-        fontWeight =
-            FontWeight.Bold
-    )
-}
+     
