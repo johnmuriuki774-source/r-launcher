@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -70,7 +70,6 @@ class MainActivity : ComponentActivity() {
 fun MoonAnimeApp() {
 
     MaterialTheme {
-
         Surface(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -102,6 +101,9 @@ fun MoonAnimeMain() {
             anime = selectedAnime!!,
             onBack = {
                 selectedAnime = null
+            },
+            onAnimeClick = {
+                selectedAnime = it
             }
         )
 
@@ -111,7 +113,6 @@ fun MoonAnimeMain() {
     Scaffold(
 
         topBar = {
-
             TopAppBar(
                 title = {
                     Text(
@@ -134,7 +135,7 @@ fun MoonAnimeMain() {
                     },
                     icon = {
                         Icon(
-                            imageVector = Icons.Default.Home,
+                            Icons.Default.Home,
                             contentDescription = "Home"
                         )
                     },
@@ -151,7 +152,7 @@ fun MoonAnimeMain() {
                     },
                     icon = {
                         Icon(
-                            imageVector = Icons.Default.Search,
+                            Icons.Default.Search,
                             contentDescription = "Search"
                         )
                     },
@@ -168,7 +169,7 @@ fun MoonAnimeMain() {
                     },
                     icon = {
                         Icon(
-                            imageVector = Icons.Default.Bookmark,
+                            Icons.Default.Bookmark,
                             contentDescription = "Library"
                         )
                     },
@@ -230,20 +231,17 @@ fun HomeScreen(
         mutableStateOf(true)
     }
 
-    var error by remember {
-        mutableStateOf<String?>(null)
-    }
-
     LaunchedEffect(Unit) {
 
         try {
 
-            trending = AniListApi().trending()
+            trending =
+                AniListApi().trending()
 
-        } catch (e: Exception) {
+        } catch (_: Exception) {
 
-            error =
-                e.message ?: "Unable to load anime"
+            trending =
+                emptyList()
 
         } finally {
 
@@ -253,9 +251,10 @@ fun HomeScreen(
 
     LazyColumn(
 
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(padding),
 
         contentPadding =
             PaddingValues(16.dp),
@@ -267,16 +266,20 @@ fun HomeScreen(
         item {
 
             Text(
-                text = "Welcome to MoonAnime",
+                text =
+                    "Welcome to MoonAnime",
+
                 style =
-                    MaterialTheme.typography.headlineMedium,
+                    MaterialTheme
+                        .typography
+                        .headlineMedium,
+
                 fontWeight =
                     FontWeight.Bold
             )
 
             Spacer(
-                modifier =
-                    Modifier.height(4.dp)
+                Modifier.height(4.dp)
             )
 
             Text(
@@ -288,63 +291,38 @@ fun HomeScreen(
         item {
 
             SectionTitle(
-                title = "🔥 Trending"
+                title =
+                    "🔥 Trending"
             )
         }
 
         item {
 
-            when {
+            if (loading) {
 
-                loading -> {
+                CircularProgressIndicator()
 
-                    Box(
-                        modifier =
-                            Modifier.fillMaxWidth(),
-                        contentAlignment =
-                            Alignment.Center
-                    ) {
+            } else if (trending.isEmpty()) {
 
-                        CircularProgressIndicator()
-                    }
-                }
+                Text(
+                    "Unable to load trending anime."
+                )
 
-                error != null -> {
+            } else {
 
-                    Text(
-                        text =
-                            error ?: "Unknown error",
-                        color =
-                            MaterialTheme
-                                .colorScheme
-                                .error
-                    )
-                }
+                LazyRow(
+                    horizontalArrangement =
+                        Arrangement.spacedBy(12.dp)
+                ) {
 
-                trending.isEmpty() -> {
+                    items(trending) { anime ->
 
-                    Text(
-                        text =
-                            "No anime found."
-                    )
-                }
-
-                else -> {
-
-                    LazyRow(
-                        horizontalArrangement =
-                            Arrangement.spacedBy(12.dp)
-                    ) {
-
-                        items(trending) { anime ->
-
-                            AnimePoster(
-                                anime = anime,
-                                onClick = {
-                                    onAnimeClick(anime)
-                                }
-                            )
-                        }
+                        AnimePoster(
+                            anime = anime,
+                            onClick = {
+                                onAnimeClick(anime)
+                            }
+                        )
                     }
                 }
             }
@@ -361,8 +339,7 @@ fun HomeScreen(
         item {
 
             Text(
-                text =
-                    "Personalized recommendations will use your library and watch history."
+                "Open an anime to see personalized recommendations."
             )
         }
     }
@@ -389,16 +366,13 @@ fun SearchScreen(
         mutableStateOf(false)
     }
 
-    var error by remember {
-        mutableStateOf<String?>(null)
-    }
-
     Column(
 
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
-            .padding(16.dp)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
     ) {
 
         OutlinedTextField(
@@ -420,8 +394,7 @@ fun SearchScreen(
         )
 
         Spacer(
-            modifier =
-                Modifier.height(8.dp)
+            Modifier.height(8.dp)
         )
 
         Button(
@@ -435,7 +408,6 @@ fun SearchScreen(
                 scope.launch {
 
                     loading = true
-                    error = null
 
                     try {
 
@@ -443,14 +415,10 @@ fun SearchScreen(
                             AniListApi()
                                 .search(query)
 
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
 
                         results =
                             emptyList()
-
-                        error =
-                            e.message
-                                ?: "Search failed"
 
                     } finally {
 
@@ -459,7 +427,8 @@ fun SearchScreen(
                 }
             },
 
-            enabled = !loading,
+            enabled =
+                !loading,
 
             modifier =
                 Modifier.fillMaxWidth()
@@ -474,29 +443,16 @@ fun SearchScreen(
         }
 
         Spacer(
-            modifier =
-                Modifier.height(16.dp)
+            Modifier.height(16.dp)
         )
 
-        if (error != null) {
-
-            Text(
-                text =
-                    error ?: "",
-                color =
-                    MaterialTheme
-                        .colorScheme
-                        .error
-            )
-
-        } else if (loading) {
+        if (loading) {
 
             CircularProgressIndicator()
 
         } else {
 
             LazyColumn(
-
                 verticalArrangement =
                     Arrangement.spacedBy(8.dp)
             ) {
@@ -523,28 +479,32 @@ fun LibraryScreen(
 
     Column(
 
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
-            .padding(16.dp)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
     ) {
 
         Text(
-            text = "My Library",
+            text =
+                "My Library",
+
             style =
-                MaterialTheme.typography.headlineMedium,
+                MaterialTheme
+                    .typography
+                    .headlineMedium,
+
             fontWeight =
                 FontWeight.Bold
         )
 
         Spacer(
-            modifier =
-                Modifier.height(16.dp)
+            Modifier.height(16.dp)
         )
 
         Text(
-            text =
-                "Your saved anime will appear here."
+            "Your saved anime will appear here."
         )
     }
 }
@@ -552,8 +512,38 @@ fun LibraryScreen(
 @Composable
 fun AnimeDetailsScreen(
     anime: Anime,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onAnimeClick: (Anime) -> Unit
 ) {
+
+    var details by remember {
+        mutableStateOf<AnimeDetails?>(null)
+    }
+
+    var loading by remember {
+        mutableStateOf(true)
+    }
+
+    LaunchedEffect(anime.id) {
+
+        try {
+
+            details =
+                AniListApi()
+                    .getAnime(anime.id)
+
+        } catch (_: Exception) {
+
+            details = null
+
+        } finally {
+
+            loading = false
+        }
+    }
+
+    val actualAnime =
+        details?.anime ?: anime
 
     Scaffold(
 
@@ -564,7 +554,7 @@ fun AnimeDetailsScreen(
                 title = {
 
                     Text(
-                        text = anime.title,
+                        actualAnime.title,
                         maxLines = 1,
                         overflow =
                             TextOverflow.Ellipsis
@@ -578,7 +568,7 @@ fun AnimeDetailsScreen(
                     ) {
 
                         Text(
-                            text = "←",
+                            "←",
                             style =
                                 MaterialTheme
                                     .typography
@@ -593,9 +583,10 @@ fun AnimeDetailsScreen(
 
         LazyColumn(
 
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
 
             contentPadding =
                 PaddingValues(16.dp),
@@ -606,15 +597,18 @@ fun AnimeDetailsScreen(
 
             item {
 
-                if (anime.imageUrl.isNotBlank()) {
+                if (
+                    actualAnime.imageUrl
+                        .isNotBlank()
+                ) {
 
                     coil3.compose.AsyncImage(
 
                         model =
-                            anime.imageUrl,
+                            actualAnime.imageUrl,
 
                         contentDescription =
-                            anime.title,
+                            actualAnime.title,
 
                         modifier =
                             Modifier
@@ -629,22 +623,19 @@ fun AnimeDetailsScreen(
                         contentScale =
                             ContentScale.Crop
                     )
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(14.dp)
-                    )
                 }
             }
 
             item {
 
                 Text(
-                    text = anime.title,
+                    actualAnime.title,
+
                     style =
                         MaterialTheme
                             .typography
                             .headlineSmall,
+
                     fontWeight =
                         FontWeight.Bold
                 )
@@ -652,192 +643,224 @@ fun AnimeDetailsScreen(
 
             item {
 
-                Row {
-
-                    Text(
-                        text =
-                            "Format: ${
-                                anime.format.ifBlank {
-                                    "Unknown"
-                                }
-                            }"
-                    )
-
-                    Spacer(
-                        modifier =
-                            Modifier.width(12.dp)
-                    )
-
-                    Text(
-                        text =
-                            "Episodes: ${
-                                anime.episodes ?: "?"
-                            }"
-                    )
-                }
-            }
-
-            item {
-
-                if (anime.score > 0) {
-
-                    Text(
-                        text =
-                            "⭐ ${
-                                anime.score / 10.0
-                            } / 10"
-                    )
-                }
-            }
-
-            item {
-
-                if (anime.genres.isNotEmpty()) {
-
-                    Text(
-                        text =
-                            anime.genres
-                                .joinToString(
-                                    " • "
-                                )
-                    )
-                }
+                Text(
+                    "⭐ ${
+                        if (actualAnime.score > 0)
+                            actualAnime.score / 10.0
+                        else
+                            "N/A"
+                    }"
+                )
             }
 
             item {
 
                 Text(
-                    text =
-                        "Status: ${
-                            anime.status.ifBlank {
-                                "Unknown"
-                            }
-                        }"
+                    "Status: ${
+                        actualAnime.status.ifBlank {
+                            "Unknown"
+                        }
+                    }"
+                )
+            }
+
+            item {
+
+                Text(
+                    "Format: ${
+                        actualAnime.format.ifBlank {
+                            "Unknown"
+                        }
+                    }"
+                )
+            }
+
+            item {
+
+                Text(
+                    "Episodes: ${
+                        actualAnime.episodes ?: "?"
+                    }"
                 )
             }
 
             item {
 
                 if (
-                    anime.description
-                        .isNotBlank()
+                    actualAnime.genres.isNotEmpty()
                 ) {
 
                     Text(
-                        text =
-                            anime.description
-                                .replace(
-                                    Regex("<[^>]*>"),
-                                    ""
-                                )
+                        actualAnime.genres
+                            .joinToString(
+                                " • "
+                            )
                     )
                 }
             }
 
             item {
 
-                Text(
-                    text =
-                        "🔢 Watch Order",
-                    style =
-                        MaterialTheme
-                            .typography
-                            .titleLarge,
-                    fontWeight =
-                        FontWeight.Bold
-                )
+                if (
+                    actualAnime.description
+                        .isNotBlank()
+                ) {
 
-                Text(
-                    text =
-                        "Related titles and the recommended viewing order will be loaded from AniList."
-                )
+                    Text(
+                        actualAnime.description
+                            .replace(
+                                Regex("<[^>]*>"),
+                                ""
+                            )
+                    )
+                }
             }
 
-            item {
+            if (loading) {
 
-                Text(
-                    text =
-                        "🎯 Recommendations",
-                    style =
-                        MaterialTheme
-                            .typography
-                            .titleLarge,
-                    fontWeight =
-                        FontWeight.Bold
-                )
+                item {
 
-                Text(
-                    text =
-                        "Similar anime will appear here."
-                )
+                    CircularProgressIndicator()
+                }
+            }
+
+            details?.let { data ->
+
+                item {
+
+                    Text(
+                        "🔢 Watch Order",
+
+                        style =
+                            MaterialTheme
+                                .typography
+                                .titleLarge,
+
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+                }
+
+                val watchOrder =
+                    WatchOrderEngine.build(
+                        data.anime,
+                        data.relations
+                    )
+
+                items(watchOrder) { entry ->
+
+                    WatchOrderCard(
+                        entry = entry,
+                        onClick = {
+                            onAnimeClick(
+                                entry.anime
+                            )
+                        }
+                    )
+                }
+
+                if (
+                    data.recommendations
+                        .isNotEmpty()
+                ) {
+
+                    item {
+
+                        Text(
+                            "🎯 Recommended Anime",
+
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .titleLarge,
+
+                            fontWeight =
+                                FontWeight.Bold
+                        )
+                    }
+
+                    item {
+
+                        LazyRow(
+                            horizontalArrangement =
+                                Arrangement.spacedBy(
+                                    12.dp
+                                )
+                        ) {
+
+                            items(
+                                data.recommendations
+                            ) { recommendation ->
+
+                                AnimePoster(
+                                    anime =
+                                        recommendation
+                                            .anime,
+
+                                    onClick = {
+
+                                        onAnimeClick(
+                                            recommendation
+                                                .anime
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun AnimePoster(
-    anime: Anime,
+fun WatchOrderCard(
+    entry: WatchOrderEntry,
     onClick: () -> Unit
 ) {
 
     Card(
 
-        modifier = Modifier
-            .width(145.dp)
-            .clickable(
-                onClick = onClick
-            )
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(
+                    onClick = onClick
+                )
     ) {
 
-        Column {
+        Row(
 
-            if (
-                anime.imageUrl.isNotBlank()
-            ) {
+            modifier =
+                Modifier.padding(12.dp),
 
-                coil3.compose.AsyncImage(
+            verticalAlignment =
+                Alignment.CenterVertically
+        ) {
 
-                    model =
-                        anime.imageUrl,
+            Text(
+                "${entry.position}.",
+                fontWeight =
+                    FontWeight.Bold
+            )
 
-                    contentDescription =
-                        anime.title,
+            Spacer(
+                Modifier.width(12.dp)
+            )
 
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(205.dp),
+            Column {
 
-                    contentScale =
-                        ContentScale.Crop
+                Text(
+                    entry.anime.title,
+                    fontWeight =
+                        FontWeight.Bold
                 )
 
-            } else {
-
-                Box(
-
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(205.dp)
-                            .background(
-                                MaterialTheme
-                                    .colorScheme
-                                    .surfaceVariant
-                            ),
-
-                    contentAlignment =
-                        Alignment.Center
-                ) {
-
-                    Icon(
-                        imageVector =
-                            Icons.Default.Tv,
-                        contentDescription =
-                            null
-                    )
-                }
-            }
-
-     
+                Text(
+                    entry.type.name
+                        .replace(
+                            "_",
+                            " "
+                        )
+           
