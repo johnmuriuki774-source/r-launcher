@@ -1,5 +1,6 @@
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.plugin.compose") version "2.3.10"
 }
 
 android {
@@ -36,9 +37,10 @@ dependencies {
 
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
 
     implementation(
-        "androidx.compose.material3:material3"
+        "androidx.compose.material:material-icons-extended"
     )
 
     implementation(
